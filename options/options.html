@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link rel="stylesheet" href="options.css" />
+    <title>TaskOrbit - Manage</title>
+  </head>
+  <body>
+    <aside class="sidebar">
+      <div class="sidebar-head">
+        <h1>Workflows</h1>
+        <button id="newBtn" class="btn btn-primary btn-sm">+ New</button>
+      </div>
+      <ul id="wfList" class="wf-list"></ul>
+      <div class="sidebar-foot">
+        <button id="viewLogsBtn" class="btn btn-sm">Logs</button>
+        <button id="exportBtn" class="btn btn-sm">Export</button>
+        <button id="importBtn" class="btn btn-sm">Import</button>
+        <input id="importFile" type="file" accept="application/json" class="hidden" />
+      </div>
+    </aside>
+
+    <main class="editor">
+      <div id="emptyEditor" class="empty">Select a workflow on the left, or create a new one.</div>
+
+      <form id="editorForm" class="hidden">
+        <div class="row">
+          <label for="wfName">Name</label>
+          <input id="wfName" type="text" placeholder="Workflow name" />
+        </div>
+
+        <div class="row">
+          <label for="wfFolder">Folder</label>
+          <input id="wfFolder" type="text" list="folderSuggestions" placeholder="Select or type a folder name…" autocomplete="off" />
+          <datalist id="folderSuggestions"></datalist>
+          <p class="hint" style="margin-top:4px;">Leave blank for Uncategorized.</p>
+        </div>
+
+        <div class="row">
+          <label class="inline">
+            <input id="wfAutoRun" type="checkbox" />
+            Auto-run on page load (requires granted site access)
+          </label>
+        </div>
+
+        <div class="row">
+          <label for="wfMaxRetries">Max Retries (per step)</label>
+          <input id="wfMaxRetries" type="number" min="0" max="20" style="width: 100px;" />
+        </div>
+
+        <div class="row" style="display: flex; gap: 15px; align-items: center; margin-top: 10px; margin-bottom: 10px;">
+          <label style="display: flex; align-items: center; gap: 5px; font-weight: bold; color: var(--text-color);">
+            Run every
+            <input id="wfScheduleInterval" type="number" min="0" placeholder="0" style="width: 60px;" />
+            minutes
+          </label>
+          <label style="display: flex; align-items: center; gap: 5px; flex-grow: 1;">
+            Start URL (for background runs):
+            <input id="wfScheduleUrl" type="text" placeholder="https://..." style="flex-grow: 1;" />
+          </label>
+        </div>
+
+        <div class="row shortcut-row">
+          <label for="wfShortcut">Keyboard shortcut</label>
+          <div class="shortcut-controls">
+            <input id="wfShortcut" type="text" class="shortcut-display" readonly placeholder="None" />
+            <button type="button" id="recordShortcutBtn" class="btn btn-sm">Record</button>
+            <button type="button" id="clearShortcutBtn" class="btn btn-sm">Clear</button>
+          </div>
+          <p class="hint shortcut-hint">Press a key or combination (e.g. Ctrl+Shift+K). Requires granted site access.</p>
+        </div>
+
+        <fieldset>
+          <legend>Sites</legend>
+          <p class="hint">Patterns like <code>https://example.com/*</code> or <code>*://*.example.com/*</code>. Used for auto-run matching and host permissions.</p>
+          <div id="siteList" class="site-list"></div>
+          <div class="site-add">
+            <input id="newSite" type="text" placeholder="https://example.com/*" />
+            <button type="button" id="addSiteBtn" class="btn btn-sm">Add site</button>
+          </div>
+          <div class="site-perm">
+            <span id="permStatus" class="perm-status"></span>
+            <button type="button" id="grantBtn" class="btn btn-sm">Grant access to listed sites</button>
+          </div>
+        </fieldset>
+
+        <fieldset>
+          <legend>Variables</legend>
+          <p class="hint">Define variables to be replaced in steps using <code>{{varName}}</code>.</p>
+          <div id="variableList" class="site-list"></div>
+          <div class="site-add">
+            <input id="newVarName" type="text" placeholder="Variable name (e.g. username)" />
+            <input id="newVarDefault" type="text" placeholder="Default value (optional)" />
+            <button type="button" id="addVarBtn" class="btn btn-sm">Add</button>
+          </div>
+        </fieldset>
+
+        <fieldset>
+          <legend>Steps</legend>
+          <div id="stepList" class="step-list"></div>
+          <div class="step-add">
+            <select id="newStepType"></select>
+            <button type="button" id="addStepBtn" class="btn btn-sm">Add step</button>
+          </div>
+        </fieldset>
+
+        <div class="editor-foot">
+          <button type="submit" class="btn btn-primary">Save</button>
+          <button type="button" id="exportOneBtn" class="btn">Export this</button>
+          <button type="button" id="deleteBtn" class="btn btn-danger">Delete workflow</button>
+          <span id="saveStatus" class="save-status"></span>
+        </div>
+      </form>
+    </main>
+
+    <main id="logsView" class="hidden" style="padding: 20px; overflow-y: auto; flex: 1; background: var(--bg-alt);">
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+        <h2 style="margin: 0; font-size: 1.2rem;">Execution Logs</h2>
+        <button id="clearLogsBtn" class="btn btn-danger btn-sm">Clear Logs</button>
+      </div>
+      <table style="width: 100%; text-align: left; border-collapse: collapse; font-size: 13px;">
+        <thead>
+          <tr style="border-bottom: 1px solid var(--border-color);">
+            <th style="padding: 8px;">Date</th>
+            <th style="padding: 8px;">Workflow</th>
+            <th style="padding: 8px;">Duration</th>
+            <th style="padding: 8px;">Status</th>
+            <th style="padding: 8px;">Message</th>
+          </tr>
+        </thead>
+        <tbody id="logsTableBody"></tbody>
+      </table>
+    </main>
+
+    <script type="module" src="options.js"></script>
+  </body>
+</html>

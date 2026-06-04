@@ -1,0 +1,299 @@
+import { getWorkflows, getWorkflow, newWorkflow, upsertWorkflow } from "../shared/storage.js";
+
+const listEl = document.getElementById("list");
+const emptyEl = document.getElementById("empty");
+const statusEl = document.getElementById("status");
+const bannerEl = document.getElementById("recordingBanner");
+const recTextEl = document.getElementById("recordingText");
+const varPromptEl = document.getElementById("varPrompt");
+const varInputsEl = document.getElementById("varInputs");
+const varRunBtn = document.getElementById("varRunBtn");
+const varCancelBtn = document.getElementById("varCancelBtn");
+
+const REC_STATE_KEY = "recordingState";
+const collapsedFolders = new Set();
+
+let pendingRunId = null;
+
+document.getElementById("newBtn").addEventListener("click", onNew);
+document.getElementById("optionsBtn").addEventListener("click", () => chrome.runtime.openOptionsPage());
+document.getElementById("stopRecBtn").addEventListener("click", onStopRecording);
+
+varCancelBtn.addEventListener("click", () => {
+  varPromptEl.classList.add("hidden");
+  pendingRunId = null;
+});
+varRunBtn.addEventListener("click", async () => {
+  if (!pendingRunId) return;
+  const wfId = pendingRunId;
+  pendingRunId = null;
+  varPromptEl.classList.add("hidden");
+  
+  const vars = {};
+  const inputs = varInputsEl.querySelectorAll("input");
+  for (const input of inputs) {
+    vars[input.dataset.name] = input.value;
+  }
+  
+  await doRun(wfId, vars);
+});
+
+init();
+
+async function init() {
+  await renderRecordingBanner();
+  await render();
+}
+
+async function getActiveTab() {
+  const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+  return tab;
+}
+
+function setStatus(text, kind = "") {
+  statusEl.textContent = text;
+  statusEl.className = "status" + (kind ? " " + kind : "");
+}
+
+async function getRecordingState() {
+  const data = await chrome.storage.session.get(REC_STATE_KEY);
+  return data[REC_STATE_KEY] || null;
+}
+
+async function renderRecordingBanner() {
+  const state = await getRecordingState();
+  if (state) {
+    const wf = await getWorkflow(state.workflowId);
+    recTextEl.textContent = `Recording into "${wf ? wf.name : "?"}"...`;
+    bannerEl.classList.remove("hidden");
+  } else {
+    bannerEl.classList.add("hidden");
+  }
+}
+
+async function render() {
+  const workflows = await getWorkflows();
+  const recording = await getRecordingState();
+  listEl.innerHTML = "";
+
+  if (workflows.length === 0) {
+    emptyEl.classList.remove("hidden");
+    return;
+  }
+  emptyEl.classList.add("hidden");
+
+  const grouped = {};
+  workflows.forEach(wf => {
+    const f = (wf.folder || "").trim() || "Uncategorized";
+    if (!grouped[f]) grouped[f] = [];
+    grouped[f].push(wf);
+  });
+
+  const folders = Object.keys(grouped).sort((a, b) => {
+    if (a === "Uncategorized") return 1;
+    if (b === "Uncategorized") return -1;
+    return a.localeCompare(b);
+  });
+
+  for (const folder of folders) {
+    const isCollapsed = collapsedFolders.has(folder);
+    const count = grouped[folder].length;
+
+    // ---- Collapsible folder header ----
+    const header = document.createElement("li");
+    header.className = "folder-header" + (isCollapsed ? " collapsed" : "");
+
+    const icon = document.createElement("span");
+    icon.className = "folder-icon";
+    icon.textContent = isCollapsed ? "📁" : "📂";
+
+    const label = document.createElement("span");
+    label.className = "folder-label";
+    label.textContent = folder;
+
+    const badge = document.createElement("span");
+    badge.className = "folder-count";
+    badge.textContent = count;
+
+    const chevron = document.createElement("span");
+    chevron.className = "folder-chevron";
+    chevron.textContent = isCollapsed ? "›" : "‹";
+
+    header.append(icon, label, badge, chevron);
+    header.addEventListener("click", async () => {
+      if (collapsedFolders.has(folder)) {
+        collapsedFolders.delete(folder);
+      } else {
+        collapsedFolders.add(folder);
+      }
+      await render();
+    });
+    listEl.appendChild(header);
+
+    if (isCollapsed) continue;
+
+    for (const wf of grouped[folder]) {
+      listEl.appendChild(renderItem(wf, recording));
+    }
+  }
+}
+
+function renderItem(wf, recording) {
+  const li = document.createElement("li");
+  li.className = "item";
+
+  const head = document.createElement("div");
+  head.className = "item-head";
+
+  const nameWrap = document.createElement("div");
+  const name = document.createElement("div");
+  name.className = "item-name";
+  name.textContent = wf.name;
+  if (wf.autoRun) {
+    const badge = document.createElement("span");
+    badge.className = "badge";
+    badge.textContent = "auto";
+    name.appendChild(badge);
+  }
+  if (wf.shortcut) {
+    const sBadge = document.createElement("span");
+    sBadge.className = "badge badge-shortcut";
+    sBadge.textContent = wf.shortcut;
+    name.appendChild(sBadge);
+  }
+  const meta = document.createElement("div");
+  meta.className = "item-meta";
+  const siteText = wf.sites && wf.sites.length ? wf.sites.join(", ") : "any site (activeTab)";
+  meta.textContent = `${wf.steps.length} step(s) - ${siteText}`;
+  nameWrap.appendChild(name);
+  nameWrap.appendChild(meta);
+  head.appendChild(nameWrap);
+  li.appendChild(head);
+
+  const actions = document.createElement("div");
+  actions.className = "item-actions";
+
+  const runBtn = button("Run", "btn btn-primary btn-sm", () => onRun(wf.id));
+  const isRecordingThis = recording && recording.workflowId === wf.id;
+  const recBtn = button(
+    isRecordingThis ? "Recording..." : "Record",
+    "btn btn-sm",
+    () => onStartRecording(wf.id)
+  );
+  recBtn.disabled = !!recording;
+  const editBtn = button("Edit", "btn btn-sm", () => openEditor(wf.id));
+
+  actions.appendChild(runBtn);
+  actions.appendChild(recBtn);
+  actions.appendChild(editBtn);
+  li.appendChild(actions);
+
+  return li;
+}
+
+function button(text, className, onClick) {
+  const b = document.createElement("button");
+  b.textContent = text;
+  b.className = className;
+  b.addEventListener("click", onClick);
+  return b;
+}
+
+function openEditor(id) {
+  chrome.tabs.create({ url: chrome.runtime.getURL("options/options.html") + "?id=" + encodeURIComponent(id) });
+}
+
+async function onNew() {
+  const wf = newWorkflow();
+  await upsertWorkflow(wf);
+  openEditor(wf.id);
+}
+
+async function onRun(workflowId) {
+  const wf = await getWorkflow(workflowId);
+  if (!wf) return;
+  
+  if (wf.variables && wf.variables.length > 0) {
+    pendingRunId = workflowId;
+    varInputsEl.innerHTML = "";
+    wf.variables.forEach(v => {
+      const row = document.createElement("div");
+      row.style.display = "flex";
+      row.style.flexDirection = "column";
+      const lbl = document.createElement("label");
+      lbl.textContent = v.name;
+      lbl.style.fontSize = "12px";
+      const inp = document.createElement("input");
+      inp.type = "text";
+      inp.value = v.defaultValue || "";
+      inp.dataset.name = v.name;
+      inp.style.padding = "4px";
+      row.appendChild(lbl);
+      row.appendChild(inp);
+      varInputsEl.appendChild(row);
+    });
+    varPromptEl.classList.remove("hidden");
+  } else {
+    await doRun(workflowId, {});
+  }
+}
+
+async function doRun(workflowId, variables) {
+  setStatus("Running...");
+  const tab = await getActiveTab();
+  const res = await chrome.runtime.sendMessage({ 
+    type: "runWorkflow", 
+    workflowId, 
+    tabId: tab.id,
+    variables 
+  });
+  if (!res) {
+    setStatus("No response", "err");
+  } else if (res.ok) {
+    setStatus(`Done - ${res.results.length} step(s) ran.`, "ok");
+  } else {
+    const where = typeof res.failedAt === "number" ? ` at step ${res.failedAt + 1}` : "";
+    setStatus(`Failed${where}: ${res.error || lastError(res)}`, "err");
+  }
+}
+
+function lastError(res) {
+  if (res.results && res.results.length) {
+    const fail = res.results.find((r) => !r.ok);
+    if (fail) return fail.error;
+  }
+  return "Unknown error";
+}
+
+async function onStartRecording(workflowId) {
+  const tab = await getActiveTab();
+  const res = await chrome.runtime.sendMessage({ type: "startRecording", tabId: tab.id });
+  if (res && res.ok) {
+    await chrome.storage.session.set({ [REC_STATE_KEY]: { workflowId, tabId: res.tabId } });
+    setStatus("Recording started. Interact with the page, then reopen and Stop & Save.", "ok");
+    await renderRecordingBanner();
+    await render();
+  } else {
+    setStatus("Could not start recording: " + (res ? res.error : "no response"), "err");
+  }
+}
+
+async function onStopRecording() {
+  const state = await getRecordingState();
+  if (!state) return;
+  const res = await chrome.runtime.sendMessage({ type: "stopRecording", tabId: state.tabId });
+  await chrome.storage.session.remove(REC_STATE_KEY);
+
+  if (res && res.ok) {
+    const wf = await getWorkflow(state.workflowId);
+    if (wf) {
+      wf.steps = wf.steps.concat(res.steps || []);
+      await upsertWorkflow(wf);
+      setStatus(`Saved ${res.steps.length} recorded step(s) to "${wf.name}".`, "ok");
+    }
+  } else {
+    setStatus("Stop failed: " + (res ? res.error : "no response"), "err");
+  }
+  await renderRecordingBanner();
+  await render();
+}
