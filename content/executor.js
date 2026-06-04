@@ -51,6 +51,7 @@
       "navigate": "Navigate to URL",
       "screenshot": "Take Screenshot",
       "extractText": "Extract Text",
+      "calculateMath": "Calculate Math",
       "exportData": "Export Variables",
       "sendWebhook": "Send Webhook",
       "runWorkflow": "Run Workflow (Nested)",
@@ -567,10 +568,33 @@
           text = el.textContent || "";
         }
         
+        if (step.parseNumeric) {
+          text = text.replace(/[^0-9.-]+/g, "");
+          if (text === "") text = "0";
+        }
+        
         const varName = step.value;
         if (!varName) throw new Error("No variable name provided for extraction");
         
         variables[varName] = text.trim();
+        return;
+      }
+
+      case "calculateMath": {
+        const expr = step.value;
+        const targetVar = step.selector;
+        if (!expr) throw new Error("No math expression provided");
+        if (!targetVar) throw new Error("No target variable provided for calculation");
+        
+        try {
+          const result = new Function("return (" + expr + ")")();
+          if (typeof result !== "number" || isNaN(result)) {
+            throw new Error("Expression did not evaluate to a valid number");
+          }
+          variables[targetVar] = String(result);
+        } catch (e) {
+          throw new Error("Failed to calculate math: " + e.message);
+        }
         return;
       }
 

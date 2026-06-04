@@ -16,6 +16,7 @@ export const STEP_TYPES = {
   wait: { label: "Wait (delay)", needs: ["delayMs"] },
   waitNetworkIdle: { label: "Wait for Network Idle", needs: ["value", "delayMs"] },
   extractText: { label: "Extract Text", needs: ["selector", "value"] },
+  calculateMath: { label: "Calculate Math", needs: ["value", "selector"] },
   exportData: { label: "Export Variables", needs: ["value"] },
   runWorkflow: { label: "Run Workflow (Nested)", needs: ["value"] },
   pressKey: { label: "Press Key", needs: ["selector", "value"] },
@@ -64,6 +65,7 @@ export function newStep(type = "click") {
     selectorType: DEFAULT_SELECTOR_TYPE,
     selector: "",
     value: "",
+    parseNumeric: false,
     optional: false,
     delayMs: type === "wait" ? 1000 : 0
   };

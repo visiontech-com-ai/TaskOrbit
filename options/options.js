@@ -509,7 +509,7 @@ function renderStep(step, i) {
   fields.className = "step-fields";
   const needs = STEP_TYPES[step.type] ? STEP_TYPES[step.type].needs : ["selector", "value"];
 
-  if (needs.includes("selector")) {
+  if (needs.includes("selector") && step.type !== "calculateMath") {
     fields.appendChild(selectorTypeField(step));
     fields.appendChild(selectorField(step));
   }
@@ -610,9 +610,28 @@ function renderStep(step, i) {
       authWrap.append(authLabel, authInput);
       wrapper.append(urlWrap, authWrap);
       fields.appendChild(wrapper);
+    } else if (step.type === "calculateMath") {
+      fields.appendChild(field("Math Expression", step.value || "", (v) => (step.value = v), "{{price}} * {{quantity}}"));
+      fields.appendChild(field("Result Variable Name", step.selector || "", (v) => (step.selector = v), "e.g. total"));
     } else {
       const placeholder = step.type === "navigate" ? "https://..." : step.type === "check" ? "true / false" : step.type === "selectOption" ? "option value or text" : step.type === "waitNetworkIdle" ? "Idle duration (ms)" : step.type === "extractText" ? "Variable name to save to" : step.type === "exportData" ? "Format: 'csv' or 'json'" : "text to type";
       fields.appendChild(field("Value", step.value || "", (v) => (step.value = v), placeholder));
+    }
+
+    if (step.type === "extractText") {
+      const optWrap = document.createElement("div");
+      optWrap.className = "step-field";
+      optWrap.style.marginTop = "4px";
+      const lbl = document.createElement("label");
+      lbl.className = "inline";
+      lbl.style.cursor = "pointer";
+      const cb = document.createElement("input");
+      cb.type = "checkbox";
+      cb.checked = !!step.parseNumeric;
+      cb.addEventListener("change", () => (step.parseNumeric = cb.checked));
+      lbl.append(cb, document.createTextNode(" Parse as number (strip symbols)"));
+      optWrap.appendChild(lbl);
+      fields.appendChild(optWrap);
     }
   }
   if (needs.includes("delayMs")) {
