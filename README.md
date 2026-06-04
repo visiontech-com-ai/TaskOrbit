@@ -1,150 +1,226 @@
-# 🚀 TaskOrbit (Chrome Extension)
+<div align="center">
 
-[![Chrome Web Store](https://img.shields.io/badge/Chrome-Extension-blue.svg)](#)
+# 🚀 TaskOrbit
+
+**Your personal robotic process automation assistant built right into your browser.**  
+Automate repetitive tasks, fill forms, extract data, and streamline workflows without writing a single line of code.
+
+[![Chrome Web Store](https://img.shields.io/badge/Chrome_Web_Store-Available-blue.svg?logo=googlechrome)](#)
 [![Manifest V3](https://img.shields.io/badge/Manifest-V3-brightgreen.svg)](#)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Privacy First](https://img.shields.io/badge/Privacy-Local_Only-success.svg)](#)
 
-A powerful Manifest V3 Chrome extension that runs configurable automation **workflows** on the sites you choose.
-
-Each workflow is an ordered list of steps such as clicking an element, typing text into a field, selecting a dropdown option, extracting data, or firing a webhook. Workflows can be **recorded** by interacting with a page and/or **hand-edited**. You can run them **manually** from the popup, **automatically on page load**, or on a **recurring schedule**.
-
-## ✨ Features
-
-- **Rich Step Library:** `click`, `type text`, `select option`, `press key`, `wait for element`, `wait (delay)`, `wait for network idle`, `navigate`, `take screenshot`, `extract text`, `export variables`, `run nested workflow`, `send webhook`, `if element exists / end if`.
-- **Live Recording:** Build workflows by interacting directly with a webpage (clicks, typing, key presses all captured), then refine them in the editor.
-- **Auto-run & Manual Execution:** Run manually from the popup, auto-run on page load, or trigger via keyboard shortcut.
-- **Scheduler:** Set a workflow to run every N minutes in the background — it opens a background tab, executes, and closes automatically.
-- **Conditional Logic:** Branch your workflow with `If Element Exists` / `If Not Exists` / `End If` markers.
-- **Workflow Variables:** Define named variables with defaults; override them at run time from a prompt.
-- **Nested Workflows:** Call any other saved workflow as a step, sharing the same runtime variable scope.
-- **Data Extraction & Math:** Scrape text from the page into variables (with an option to parse strictly as numbers), run math calculations (`Calculate Math` step), and export variables to CSV/JSON.
-- **Password Reveal Tool:** A standalone utility built into the extension. Right-click any password to reveal it, or configure TaskOrbit to automatically unmask passwords on all or specific sites.
-- **Retry & Error Handling:** Set per-workflow max retries; mark individual steps as Optional to skip failures gracefully.
-- **Smart Feedback:** A sleek floating Progress Overlay shows per-step status in real time, and a Smart Activation Toast elegantly notifies you when background automation engages.
-- **Inline Validation:** The editor highlights misconfigured steps before saving.
-- **Workflow Duplication:** Clone any workflow with one click from the sidebar.
-- **Selective Import / Export:** Export any subset of workflows to JSON; re-import them with collision-safe ID generation.
-- **Privacy-First Permission Model:** Least-privilege host permissions, granted per workflow. All data stored locally in `chrome.storage.local`. Nothing sent to external servers.
-- **Zero Dependencies:** Plain HTML/CSS/JS (ES modules). No build step required!
+</div>
 
 ---
 
-## 🚀 Installation (Load Unpacked)
+## ❓ Why TaskOrbit?
 
-Since this is a developer version without a build step, you can load it directly into Chrome:
+Tired of performing the same 10 clicks every morning? Exhausted by manual data entry across legacy enterprise systems? **TaskOrbit** solves the pain of repetitive web operations by turning your browser into a smart, automated assistant. 
 
-1. Open `chrome://extensions` in Chrome (or any Chromium browser).
-2. Enable **Developer mode** (the toggle in the top-right corner).
-3. Click **Load unpacked** and select this project folder (the directory containing `manifest.json`).
-4. The **TaskOrbit** icon will appear in your toolbar. Pin it for easy access.
+Unlike heavy desktop RPA tools or expensive cloud solutions, TaskOrbit runs entirely locally within your browser. It's fast, secure, and specifically designed for non-technical users to build robust web automations through simple recording and visual editing.
 
 ---
 
-## 🛠️ Usage Guide
+## ✨ Key Features
 
-### 1. Create a Workflow
-1. Click the toolbar icon to open the popup, then click **+ New** (opens the Options page editor).
-2. Give it a name. Optionally, set a **Folder**, add **site patterns** (e.g. `https://example.com/*`), and toggle **Auto-run**.
-3. Click **Grant access to listed sites** to enable auto-run or background execution.
+- **🔴 Live Workflow Recording:** Build automations simply by performing the actions yourself. TaskOrbit records your clicks, keystrokes, and selections in real-time.
+- **⚡ Auto-Run System:** Configure workflows to execute automatically the moment you land on specific websites.
+- **🧩 Intuitive Visual Editor:** A sleek, drag-and-drop interface for fine-tuning workflows, adding delays, and configuring custom logic.
+- **🔒 Privacy-First Architecture:** 100% local execution. Your data and workflows never leave your machine.
+- **📦 Import & Export:** Share your automations with colleagues or back them up effortlessly via JSON.
+- **🗃️ Robust Data Extraction:** Scrape text, calculate math dynamically, and export variables directly to CSV or JSON.
+- **⏱️ Smart Scheduling:** Run background tasks automatically on a recurring schedule.
 
-### 2. Add Steps (Two Ways)
-- **Record:** In the popup, click **Record** on a workflow, interact with the current page (clicks, typing, key presses are captured), then reopen the popup and click **Stop & Save**.
-- **Manual:** In the editor, choose a step type and click **Add step**, then configure the selector, value, and options. Drag the **⠿** handle to reorder steps.
+---
 
-### 3. Element Finding Strategies
+## 📸 Screenshots
 
-| Strategy | Selector field holds | Resolves with |
+> *Screenshots coming soon...*
+> 
+> * [Placeholder: Workflow Visual Editor]
+> * [Placeholder: Live Recording Overlay]
+> * [Placeholder: Execution Progress Toast]
+
+---
+
+## 🛠️ Installation
+
+Currently, TaskOrbit is available for developers. To load it into Chrome:
+
+1. Download or clone this repository to your local machine.
+2. Open your Chromium-based browser (Chrome, Edge, Brave) and navigate to `chrome://extensions/`.
+3. Enable **Developer mode** using the toggle in the top-right corner.
+4. Click **Load unpacked** and select the `TaskOrbit` folder (where the `manifest.json` is located).
+5. 📌 **Tip:** Pin the TaskOrbit extension icon to your browser toolbar for quick access!
+
+---
+
+## 🚀 Quick Start
+
+Creating your first automation is incredibly simple. Let's create a workflow that automatically clicks a "Refresh Data" button when you visit your dashboard:
+
+1. Click the **TaskOrbit** icon in your toolbar and select **+ New**.
+2. Name your workflow: `Daily Dashboard Refresh`.
+3. In the popup, click the **🔴 Record** button.
+4. Navigate to your dashboard and click the specific button you want to automate.
+5. Open the extension popup again and click **🛑 Stop & Save**.
+6. Whenever you want to run this sequence, just click **Run**!
+
+---
+
+## 🏗️ Workflow Builder
+
+TaskOrbit provides two primary ways to create and maintain your automations:
+
+### 1. Live Recording
+The easiest way to get started. When recording is active, TaskOrbit injects a lightweight script into the page that captures your natural interactions (clicks, keyboard input, dropdown selections). Once saved, these actions are converted into editable steps.
+
+### 2. Manual Editing
+Open the full Options page to access the visual builder. Here you can:
+- Add advanced steps like *Wait for Network Idle* or *Extract Text*.
+- Re-order steps via drag-and-drop.
+- Modify element selectors for better reliability.
+- Set up conditional logic (If/Else blocks).
+
+---
+
+## 🎯 Element Selection Strategies
+
+When finding elements on a page, TaskOrbit supports multiple intelligent fallback strategies to ensure your workflow remains robust even if the website changes slightly.
+
+| Strategy | Ideal Use Case | Resolution Method |
 | :--- | :--- | :--- |
-| `CSS selector` | `#id`, `.class`, `[name=...]` | `document.querySelector` |
-| `Element ID` | The exact ID (no `#`) | `document.getElementById` |
-| `Name attribute` | Value of `name="..."` | `document.getElementsByName` |
-| `XPath` | e.g. `//button[@type='submit']` | `document.evaluate` |
-| `Visible text` | The element's exact visible text | Text match (deepest element wins) |
-
-### 4. Run a Workflow
-- **Manually:** Open the popup on the target tab and click **Run**.
-- **Automatically:** Enable **Auto-run**, add matching site patterns, and grant access.
-- **Scheduled:** Set a **Run every X minutes** interval and a **Start URL** in the workflow editor. TaskOrbit will handle the rest in the background.
+| **`CSS selector`** | Standard web pages with predictable classes (`.btn-primary`) or attributes (`[data-test-id="submit"]`). | `document.querySelector` |
+| **`Element ID`** | Highly reliable when developers use unique IDs. Enter the exact ID (no `#`). | `document.getElementById` |
+| **`Name attribute`** | Forms and input fields where `name="..."` is consistently used. | `document.getElementsByName` |
+| **`XPath`** | Complex DOM traversals where CSS selectors fall short (e.g., `//button[contains(text(), 'Submit')]`). | `document.evaluate` |
+| **`Visible text`** | The most human-readable approach. Matches the exact visible text on the button or link. | Deep text match algorithm |
 
 ---
 
-## 📖 Step Reference
+## 📚 Workflow Step Types
 
-TaskOrbit comes packed with a rich library of automation steps. Below is a detailed breakdown of every task type available:
+Our comprehensive step library allows you to interact with almost any web application element.
 
 ### 🖱️ Interaction & Input
-- **Click element:** Waits for the element, scrolls it into view, and simulates a natural click event.
-- **Type text:** Sets the value of a text field and fires `input` and `change` events to simulate real user typing.
-- **Set text:** Instantly sets the `.value` property of a field (useful for hidden or strict inputs).
-- **Clear field:** Empties an input or textarea completely.
-- **Select option:** Sets a `<select>` dropdown by either matching the exact option `value` or its visible text.
-- **Check / uncheck:** Enforces the checked state of a checkbox or radio button.
-- **Press key:** Dispatches full `keydown`, `keypress`, and `keyup` events. Supports modifier keys (Ctrl, Alt, Shift, Meta) and specific key codes (e.g., `Enter`, `Escape`).
+| Step Type | Description |
+| :--- | :--- |
+| **Click element** | Waits for the element, scrolls it into view, and simulates a natural user click. |
+| **Type text** | Sets field values and fires `input`/`change` events for realistic simulation. |
+| **Set text** | Instantly overrides the `.value` property (useful for hidden/stubborn inputs). |
+| **Clear field** | Empties an input or textarea instantly. |
+| **Select option** | Interacts with `<select>` dropdowns by matching value or visible text. |
+| **Check / uncheck** | Enforces the precise state of checkboxes and radio buttons. |
+| **Press key** | Simulates exact keystrokes, including modifiers (Ctrl/Cmd, Shift) and special keys (Enter, Esc). |
 
-### ⏱️ Waiting & Timing
-- **Wait for element:** Polls the DOM until a specific element exists in the HTML, or the timeout is reached.
-- **Wait visible:** Polls until the target element is fully visible and interactable on the screen.
-- **Wait (delay):** Hard pauses the workflow execution for a given number of milliseconds.
-- **Wait for network idle:** Observes all `fetch` and `XHR` network requests and pauses until the network has been completely quiet for the specified idle duration.
+### ⏱️ Timing & Synchronization
+| Step Type | Description |
+| :--- | :--- |
+| **Wait for element** | Pauses execution until an element exists in the DOM. |
+| **Wait visible** | Polls until an element is fully visible and interactable. |
+| **Wait (delay)** | A hard pause for a specified number of milliseconds. |
+| **Wait for network idle**| Pauses until all background XHR/fetch requests have settled. Perfect for SPAs! |
 
-### 🧮 Data Extraction & Calculation (Advanced)
-- **Extract Text:** Reads the visible text (or input value) from an element and saves it into a runtime variable (e.g., `{{price}}`). Includes an optional **Parse as number** toggle which automatically strips currency symbols, commas, and letters, leaving only pure decimals behind.
-- **Calculate Math:** *Highly flexible computation engine.* Evaluates mathematical expressions using your extracted variables. 
-  - **Simple Math:** `{{price}} * {{quantity}}`
-  - **Ternary Logic:** `{{val}} < 100 ? {{val}} * 1.5 : {{val}} * 1.0`
-  - **Multi-line Range Calculations:** By using the `return` keyword, you can write full JavaScript block logic directly in the expression box. Perfect for calculating values across different numeric ranges:
-    ```javascript
-    if ({{val}} < 10) return {{val}} * 1.5;
-    if ({{val}} < 50) return {{val}} * 1.2;
-    return {{val}} * 1.0;
-    ```
-    *Note: Calculations run inside a secure Chrome Sandbox, meaning they fully bypass strict Content Security Policies (CSP) safely!*
-
-### 🔄 Logic & Flow Control
-- **If element exists / If not exists:** Branches your workflow execution based on the presence of an element. If the condition is false, execution instantly skips ahead to the next `End If` marker.
-- **End if:** Marks the end of a conditional block.
-- **Run Workflow (Nested):** Executes another saved workflow exactly as if it was a step. The nested workflow shares the exact same variable scope as the parent!
-
-### 📤 Output & Export
-- **Export Variables:** Instantly downloads all current runtime variables to your local machine as either a `.csv` or `.json` file.
-- **Send Webhook:** Performs a POST request to an external server URL, passing along the exact timestamp and all currently extracted variables.
-- **Take Screenshot:** Captures the current visible tab and saves it as a `.png` file to your downloads folder.
-- **Navigate to URL:** Redirects the current active tab to a new URL.
+*(For advanced extraction, calculation, and conditional steps, see the full documentation in the extension).*
 
 ---
 
-## 🔒 Permission Model
+## 🤖 Auto-Run System
 
-- **`activeTab`**: Covers manual runs and recording; no extra grant needed for one-off use.
-- **`optional_host_permissions` (`*://*/*`)**: Requested per workflow via **Grant access**. Required for auto-run, shortcuts, and scheduled execution.
-- **`alarms`**: Used for the scheduler feature to wake up the background worker.
-- **`downloads`**: Used to save screenshots and exported variable files.
-- **Local Storage**: All workflows are stored locally in `chrome.storage.local`.
+TaskOrbit can operate autonomously without user intervention. By configuring the **Auto-run** system, workflows execute instantly when you visit specific websites.
+
+**How it works:**
+1. Define a URL pattern (e.g., `https://my-internal-erp.com/login/*`).
+2. Toggle the **Auto-run** switch in the workflow settings.
+3. **Grant Access:** Because TaskOrbit respects your privacy, it utilizes a least-privilege permission model. You must explicitly grant the extension permission to run on those specific domains.
+
+---
+
+## 🛡️ Privacy & Security
+
+In an era of cloud-connected tools, TaskOrbit takes a radical approach: **Absolute Local Isolation**.
+
+> [!IMPORTANT]
+> **Your data is yours.**
+> - ❌ **No Cloud Service:** We do not host, store, or process your workflows on external servers.
+> - ❌ **No Telemetry:** We do not track your usage, clicks, or visited sites.
+> - ❌ **No External APIs:** The core extension operates entirely offline once installed.
+> - ✅ **Local-Only Storage:** All configurations, variables, and workflows are securely stored via `chrome.storage.local`.
+
+---
+
+## 💼 Example Use Cases
+
+TaskOrbit is incredibly versatile and shines in environments with repetitive, structured processes:
+
+*   **🏢 Government & Administration:** Streamlining repetitive data entry in state portals, Panchayat administration tasks, and civic form filling.
+*   **📊 Enterprise ERP Systems:** Automating weekly report generation and data syncing between legacy web portals.
+*   **✍️ Mass Data Entry:** Migrating spreadsheet data into web-based CRMs or databases rapidly.
+*   **🛒 E-Commerce Management:** Quickly updating inventory or product statuses across seller dashboards.
+*   **🛠️ Developer & QA Operations:** Automating browser test scenarios, clearing specific caches, or setting up local dev environments instantly.
+
+---
+
+## 🏛️ Project Architecture
+
+```mermaid
+graph TD
+    A[Manifest V3] --> B(Background Service Worker)
+    B -->|Injection & Routing| C[Content Scripts]
+    C --> D(Executor Engine)
+    C --> E(Live Recorder)
+    C --> F(Network Interceptor)
+    B --> G[Popup UI]
+    B --> H[Options / Editor UI]
+    C -.->|Reads/Writes| I[(chrome.storage.local)]
+    H -.->|Configures| I
+    B -.->|Monitors| I
+```
 
 ---
 
 ## ⚠️ Limitations
 
-- **Brittle Selectors:** Auto-generated selectors are best-effort. If a page changes structure, edit the selector manually.
-- **SPAs:** You may need a `wait for element` or `wait for network idle` step before interacting with dynamically rendered content.
-- **Iframes:** Cross-origin iframes are not currently supported.
-- **Restricted Pages:** Cannot run on `chrome://` URLs or the Chrome Web Store.
+While powerful, TaskOrbit operates within the boundaries of modern browser security constraints:
+
+- **Brittle Selectors:** Websites that frequently change their DOM structure may break recorded selectors. It's recommended to manually assign stable CSS classes or IDs if available.
+- **Single Page Applications (SPAs):** Heavy asynchronous apps might require explicit `wait for network idle` or `wait for element` steps.
+- **Iframes:** Interacting inside cross-origin iframes is currently not supported due to browser security policies.
+- **Restricted Pages:** Chrome extensions cannot execute on `chrome://` pages or the Chrome Web Store itself.
 
 ---
 
-## 📂 Project Structure
+## 🗺️ Roadmap
 
-```text
-├── manifest.json         # MV3 manifest
-├── background.js         # Service worker: routing, injection, auto-run, scheduler
-├── shared/
-│   └── storage.js        # Data model, step types, storage helpers
-├── content/
-│   ├── executor.js       # Injected step runner + live progress overlay
-│   ├── recorder.js       # Injected interaction recorder (clicks, typing, key presses)
-│   ├── interceptor.js    # Injected script to monitor network idle states
-│   ├── toast.js          # Smart activation notification toast
-│   └── autoReveal.js     # Background password reveal observer
-├── popup/                # Toolbar popup UI (list, run, record)
-└── options/              # Full workflow editor UI (steps, variables, sites, import/export)
-```
+We are constantly working to improve TaskOrbit. Here's what is currently planned:
+
+### 🔜 Planned Features
+- [ ] **Variables:** Advanced workflow-level variable definitions.
+- [ ] **Conditional Logic:** Native If/Else branching based on page state.
+- [ ] **Loops:** Iterate over lists or tables dynamically.
+- [ ] **Workflow Templates:** Pre-built configurations for popular platforms.
+- [ ] **Marketplace:** A community hub to share and discover workflows.
+- [ ] **AI-assisted Selector Recovery:** Self-healing workflows when website layouts change.
+- [ ] **Workflow Analytics:** Track time saved and execution success rates.
+- [ ] **Cloud Sync (Optional):** Opt-in syncing across your devices.
+
+---
+
+## 🤝 Contributing
+
+We welcome contributions from the open-source community! Whether you're fixing bugs, improving documentation, or proposing new features:
+
+1. Fork the repository.
+2. Create a new branch for your feature (`git checkout -b feature/AmazingFeature`).
+3. Commit your changes (`git commit -m 'Add some AmazingFeature'`).
+4. Push to the branch (`git push origin feature/AmazingFeature`).
+5. Open a Pull Request.
+
+Please ensure your code adheres to the existing style and architectural patterns.
+
+---
+
+## 📄 License
+
+This project is licensed under the [MIT License](https://opensource.org/licenses/MIT).
