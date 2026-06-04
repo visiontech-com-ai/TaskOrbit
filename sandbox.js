@@ -3,7 +3,11 @@ window.addEventListener("message", (event) => {
     try {
       // Safely evaluate math expression inside the sandbox.
       // Since this runs in a sandbox, it won't violate the extension's or page's CSP.
-      const result = new Function("return (" + event.data.expr + ")")();
+      const expr = event.data.expr;
+      const hasReturn = /\breturn\b/.test(expr);
+      const fnBody = hasReturn ? expr : "return (" + expr + ")";
+      const result = new Function(fnBody)();
+      
       event.source.postMessage({
         taskorbit_math_id: event.data.taskorbit_math_id,
         result: result

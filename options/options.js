@@ -521,7 +521,12 @@ function renderStep(step, i) {
 
   const actions = document.createElement("div");
   actions.className = "step-actions";
-  actions.appendChild(iconBtn("\u2715", "Delete", () => {
+  actions.appendChild(iconBtn("\u29C9", "Duplicate step", () => {
+    const clone = structuredClone(step);
+    current.steps.splice(i + 1, 0, clone);
+    renderSteps();
+  }));
+  actions.appendChild(iconBtn("\u2715", "Delete step", () => {
     current.steps.splice(i, 1);
     renderSteps();
   }));
@@ -640,7 +645,7 @@ function renderStep(step, i) {
       wrapper.append(urlWrap, authWrap);
       fields.appendChild(wrapper);
     } else if (step.type === "calculateMath") {
-      fields.appendChild(field("Math Expression", step.value || "", (v) => (step.value = v), "{{price}} * {{quantity}}"));
+      fields.appendChild(textareaField("Math Expression", step.value || "", (v) => (step.value = v), "{{price}} * {{quantity}}"));
       fields.appendChild(field("Result Variable Name", step.selector || "", (v) => (step.selector = v), "e.g. total"));
     } else {
       const placeholder = step.type === "navigate" ? "https://..." : step.type === "check" ? "true / false" : step.type === "selectOption" ? "option value or text" : step.type === "waitNetworkIdle" ? "Idle duration (ms)" : step.type === "extractText" ? "Variable name to save to" : step.type === "exportData" ? "Format: 'csv' or 'json'" : "text to type";
@@ -709,6 +714,23 @@ function field(labelText, value, onInput, placeholder = "") {
   input.type = "text";
   input.value = value;
   input.placeholder = placeholder;
+  input.addEventListener("input", () => onInput(input.value));
+  f.appendChild(l);
+  f.appendChild(input);
+  return f;
+}
+
+function textareaField(labelText, value, onInput, placeholder = "") {
+  const f = document.createElement("div");
+  f.className = "step-field";
+  // Make textarea take up more space proportionally
+  f.style.flex = "2";
+  const l = document.createElement("label");
+  l.textContent = labelText;
+  const input = document.createElement("textarea");
+  input.value = value;
+  input.placeholder = placeholder;
+  input.rows = 2;
   input.addEventListener("input", () => onInput(input.value));
   f.appendChild(l);
   f.appendChild(input);

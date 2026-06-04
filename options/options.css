@@ -86,7 +86,7 @@ h1 {
 
 .editor {
   padding: 22px 26px;
-  max-width: 820px;
+  max-width: 1200px;
 }
 
 .row {
@@ -107,13 +107,15 @@ label.inline {
 }
 
 input[type="text"],
-select {
+select,
+textarea {
   font: inherit;
   padding: 7px 9px;
   border: 1px solid var(--border);
   border-radius: 6px;
   background: #fff;
   color: var(--fg);
+  resize: vertical;
 }
 
 #wfName {
@@ -266,15 +268,18 @@ code {
 }
 
 .step-fields {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 8px;
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  align-items: stretch;
 }
 
 .step-field {
   display: flex;
   flex-direction: column;
   gap: 3px;
+  flex: 1;
+  min-width: 200px;
 }
 
 .step-field label {
