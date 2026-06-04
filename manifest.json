@@ -3,7 +3,7 @@
   "name": "TaskOrbit",
   "version": "1.0.0",
   "description": "Build and run configurable automation workflows (click, select, type text) on the sites you choose.",
-  "permissions": ["storage", "scripting", "tabs", "activeTab", "downloads", "alarms"],
+  "permissions": ["storage", "scripting", "tabs", "activeTab", "downloads", "alarms", "contextMenus"],
   "optional_host_permissions": ["*://*/*"],
   "background": {
     "service_worker": "background.js",
@@ -20,7 +20,7 @@
   "content_scripts": [
     {
       "matches": ["<all_urls>"],
-      "js": ["content/toast.js"],
+      "js": ["content/toast.js", "content/autoReveal.js"],
       "run_at": "document_idle"
     }
   ],

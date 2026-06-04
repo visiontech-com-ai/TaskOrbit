@@ -11,7 +11,9 @@ import {
   SELECTOR_TYPES,
   DEFAULT_SELECTOR_TYPE,
   getLogs,
-  clearLogs
+  clearLogs,
+  getSettings,
+  saveSettings
 } from "../shared/storage.js";
 
 const els = {
@@ -49,20 +51,29 @@ const els = {
   viewLogsBtn: document.getElementById("viewLogsBtn"),
   logsView: document.getElementById("logsView"),
   logsTableBody: document.getElementById("logsTableBody"),
-  clearLogsBtn: document.getElementById("clearLogsBtn")
+  clearLogsBtn: document.getElementById("clearLogsBtn"),
+  settingsBtn: document.getElementById("settingsBtn"),
+  settingsView: document.getElementById("settingsView"),
+  revealSitesContainer: document.getElementById("revealSitesContainer"),
+  revealSiteList: document.getElementById("revealSiteList"),
+  newRevealSite: document.getElementById("newRevealSite"),
+  addRevealSiteBtn: document.getElementById("addRevealSiteBtn")
 };
 
 let workflows = [];
 let current = null; // working copy of the selected workflow
 const collapsedFolders = new Set(); // persists collapse state for the session
+let extensionSettings = null;
 
 init();
 
 async function init() {
   populateStepTypeSelect();
-  bindEvents();
   workflows = await getWorkflows();
+  extensionSettings = await getSettings();
+  bindEvents();
   renderList();
+  renderSettings();
 
   const params = new URLSearchParams(location.search);
   const id = params.get("id");
@@ -121,6 +132,23 @@ function bindEvents() {
   els.addVarBtn.addEventListener("click", onAddVar);
   els.viewLogsBtn.addEventListener("click", onViewLogs);
   els.clearLogsBtn.addEventListener("click", onClearLogs);
+  els.settingsBtn.addEventListener("click", onViewSettings);
+
+  els.addRevealSiteBtn.addEventListener("click", onAddRevealSite);
+  els.newRevealSite.addEventListener("keydown", (e) => {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      onAddRevealSite();
+    }
+  });
+
+  document.querySelectorAll('input[name="revealMode"]').forEach(radio => {
+    radio.addEventListener("change", (e) => {
+      extensionSettings.revealPasswords = e.target.value;
+      saveSettings(extensionSettings);
+      renderSettings();
+    });
+  });
 }
 
 // ---- Sidebar list ---------------------------------------------------------
@@ -229,6 +257,7 @@ function selectWorkflow(id) {
   if (!wf) return;
   current = structuredClone(wf);
   els.logsView.classList.add("hidden");
+  els.settingsView.classList.add("hidden");
   document.querySelector(".editor").classList.remove("hidden");
   els.emptyEditor.classList.add("hidden");
   els.form.classList.remove("hidden");
@@ -958,6 +987,7 @@ async function onViewLogs() {
   current = null;
   renderList();
   document.querySelector(".editor").classList.add("hidden");
+  els.settingsView.classList.add("hidden");
   els.logsView.classList.remove("hidden");
   await renderLogs();
 }
@@ -1025,4 +1055,62 @@ async function renderLogs() {
 
     els.logsTableBody.appendChild(tr);
   }
+}
+
+// ---- Settings View --------------------------------------------------------
+
+function onViewSettings() {
+  current = null;
+  renderList();
+  document.querySelector(".editor").classList.add("hidden");
+  els.logsView.classList.add("hidden");
+  els.settingsView.classList.remove("hidden");
+}
+
+function renderSettings() {
+  if (!extensionSettings) return;
+  const mode = extensionSettings.revealPasswords || "off";
+  const radio = document.querySelector(`input[name="revealMode"][value="${mode}"]`);
+  if (radio) radio.checked = true;
+
+  if (mode === "site") {
+    els.revealSitesContainer.classList.remove("hidden");
+  } else {
+    els.revealSitesContainer.classList.add("hidden");
+  }
+
+  els.revealSiteList.innerHTML = "";
+  (extensionSettings.revealSites || []).forEach((site, i) => {
+    const row = document.createElement("div");
+    row.className = "site-row";
+    const input = document.createElement("input");
+    input.type = "text";
+    input.value = site;
+    input.addEventListener("input", () => {
+      extensionSettings.revealSites[i] = input.value;
+      saveSettings(extensionSettings);
+    });
+    const del = document.createElement("button");
+    del.type = "button";
+    del.className = "btn btn-sm btn-danger";
+    del.textContent = "Remove";
+    del.addEventListener("click", () => {
+      extensionSettings.revealSites.splice(i, 1);
+      saveSettings(extensionSettings);
+      renderSettings();
+    });
+    row.appendChild(input);
+    row.appendChild(del);
+    els.revealSiteList.appendChild(row);
+  });
+}
+
+function onAddRevealSite() {
+  const val = els.newRevealSite.value.trim();
+  if (!val) return;
+  if (!extensionSettings.revealSites) extensionSettings.revealSites = [];
+  extensionSettings.revealSites.push(val);
+  els.newRevealSite.value = "";
+  saveSettings(extensionSettings);
+  renderSettings();
 }

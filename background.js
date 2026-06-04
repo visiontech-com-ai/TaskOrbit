@@ -287,7 +287,28 @@ async function syncAlarms() {
 }
 
 chrome.runtime.onStartup.addListener(() => syncAlarms());
-chrome.runtime.onInstalled.addListener(() => syncAlarms());
+chrome.runtime.onInstalled.addListener(() => {
+  syncAlarms();
+  chrome.contextMenus.create({
+    id: "reveal-password",
+    title: "TaskOrbit: Reveal this password",
+    contexts: ["editable"]
+  });
+  chrome.contextMenus.create({
+    id: "reveal-all-passwords",
+    title: "TaskOrbit: Reveal all passwords on page",
+    contexts: ["page", "editable"]
+  });
+});
+
+chrome.contextMenus.onClicked.addListener((info, tab) => {
+  if (!tab || !tab.id) return;
+  if (info.menuItemId === "reveal-password") {
+    chrome.tabs.sendMessage(tab.id, { type: "REVEAL_SPECIFIC_PASSWORD" }).catch(() => {});
+  } else if (info.menuItemId === "reveal-all-passwords") {
+    chrome.tabs.sendMessage(tab.id, { type: "REVEAL_ALL_PASSWORDS" }).catch(() => {});
+  }
+});
 
 chrome.alarms.onAlarm.addListener(async (alarm) => {
   const workflowId = alarm.name;

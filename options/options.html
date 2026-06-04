@@ -15,6 +15,7 @@
       <ul id="wfList" class="wf-list"></ul>
       <div class="sidebar-foot">
         <button id="viewLogsBtn" class="btn btn-sm">Logs</button>
+        <button id="settingsBtn" class="btn btn-sm">Settings</button>
         <button id="exportBtn" class="btn btn-sm">Export</button>
         <button id="importBtn" class="btn btn-sm">Import</button>
         <input id="importFile" type="file" accept="application/json" class="hidden" />
@@ -131,6 +132,36 @@
         </thead>
         <tbody id="logsTableBody"></tbody>
       </table>
+    </main>
+
+    <main id="settingsView" class="hidden" style="padding: 20px; overflow-y: auto; flex: 1; background: var(--bg-alt);">
+      <h2 style="margin: 0 0 20px 0; font-size: 1.2rem;">Global Settings</h2>
+      
+      <fieldset style="margin-bottom: 20px;">
+        <legend>Password Reveal</legend>
+        <p class="hint" style="margin-bottom:10px;">Automatically convert password fields to plain text so you can see what you type. You can also right-click any password field to reveal it manually.</p>
+        
+        <div style="margin-bottom:10px; display:flex; flex-direction:column; gap:8px;">
+          <label style="cursor:pointer; display:flex; align-items:center; gap:8px;">
+            <input type="radio" name="revealMode" value="off" checked /> Off (Use context menu only)
+          </label>
+          <label style="cursor:pointer; display:flex; align-items:center; gap:8px;">
+            <input type="radio" name="revealMode" value="all" /> On for all sites
+          </label>
+          <label style="cursor:pointer; display:flex; align-items:center; gap:8px;">
+            <input type="radio" name="revealMode" value="site" /> On for specific sites
+          </label>
+        </div>
+
+        <div id="revealSitesContainer" class="hidden">
+          <p class="hint">Patterns like <code>https://example.com/*</code></p>
+          <div id="revealSiteList" class="site-list"></div>
+          <div class="site-add">
+            <input id="newRevealSite" type="text" placeholder="https://example.com/*" />
+            <button type="button" id="addRevealSiteBtn" class="btn btn-sm">Add site</button>
+          </div>
+        </div>
+      </fieldset>
     </main>
 
     <script type="module" src="options.js"></script>

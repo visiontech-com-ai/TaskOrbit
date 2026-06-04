@@ -222,3 +222,18 @@ export function parseShortcut(str) {
   };
 }
 
+// ---- Settings -------------------------------------------------------------
+
+export const SETTINGS_KEY = "settings";
+
+export async function getSettings() {
+  const data = await chrome.storage.local.get(SETTINGS_KEY);
+  return data[SETTINGS_KEY] || {
+    revealPasswords: "off", // "off", "all", "site"
+    revealSites: []
+  };
+}
+
+export async function saveSettings(settings) {
+  await chrome.storage.local.set({ [SETTINGS_KEY]: settings });
+}
