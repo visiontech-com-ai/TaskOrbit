@@ -70,28 +70,46 @@ Since this is a developer version without a build step, you can load it directly
 
 ## 📖 Step Reference
 
-| Step Type | Key Fields | Behavior |
-| :--- | :--- | :--- |
-| `click` | `selector` | Waits for element, scrolls into view, clicks it. |
-| `type text` | `selector`, `value` | Sets field value, fires `input`/`change` events. |
-| `set text` | `selector`, `value` | Directly sets `.value` on a field. |
-| `select option` | `selector`, `value` | Sets a `<select>` by option value or text. |
-| `check` | `selector`, `value` | Checks/unchecks a checkbox. |
-| `press key` | `selector` (opt.), `key`, modifiers | Dispatches `keydown`/`keypress`/`keyup`. |
-| `wait for` | `selector`, `timeout` | Polls until element exists or timeout elapses. |
-| `wait visible` | `selector`, `timeout` | Polls until element is visible/interactable. |
-| `wait` | `delay` | Pauses for the given milliseconds. |
-| `wait for network idle` | `idle duration`, `timeout` | Waits until all fetch/XHR activity stops for the idle duration. |
-| `navigate` | `value (URL)` | Navigates current tab to the URL. |
-| `take screenshot` | `value (prefix)` | Saves a PNG to `taskorbit_screenshots/`. |
-| `extract text` | `selector`, `variable name` | Reads element text/value into a runtime variable. Can optionally strip non-numeric characters. |
-| `calculate math` | `expression`, `variable name` | Evaluates a math expression (e.g. `{{price}} * 2`) and saves the result to a variable. |
-| `export variables` | `format (csv/json)` | Downloads all variables to `taskorbit_exports/`. |
-| `send webhook` | `URL`, `Authorization` | POSTs `{ timestamp, variables }` to an external endpoint. |
-| `run workflow` | workflow dropdown | Executes another workflow, sharing the same variables. |
-| `if element exists` | `selector` | Skips to `end if` if element is not found. |
-| `if not exists` | `selector` | Skips to `end if` if element is found. |
-| `end if` | — | Marks the end of a conditional block. |
+TaskOrbit comes packed with a rich library of automation steps. Below is a detailed breakdown of every task type available:
+
+### 🖱️ Interaction & Input
+- **Click element:** Waits for the element, scrolls it into view, and simulates a natural click event.
+- **Type text:** Sets the value of a text field and fires `input` and `change` events to simulate real user typing.
+- **Set text:** Instantly sets the `.value` property of a field (useful for hidden or strict inputs).
+- **Clear field:** Empties an input or textarea completely.
+- **Select option:** Sets a `<select>` dropdown by either matching the exact option `value` or its visible text.
+- **Check / uncheck:** Enforces the checked state of a checkbox or radio button.
+- **Press key:** Dispatches full `keydown`, `keypress`, and `keyup` events. Supports modifier keys (Ctrl, Alt, Shift, Meta) and specific key codes (e.g., `Enter`, `Escape`).
+
+### ⏱️ Waiting & Timing
+- **Wait for element:** Polls the DOM until a specific element exists in the HTML, or the timeout is reached.
+- **Wait visible:** Polls until the target element is fully visible and interactable on the screen.
+- **Wait (delay):** Hard pauses the workflow execution for a given number of milliseconds.
+- **Wait for network idle:** Observes all `fetch` and `XHR` network requests and pauses until the network has been completely quiet for the specified idle duration.
+
+### 🧮 Data Extraction & Calculation (Advanced)
+- **Extract Text:** Reads the visible text (or input value) from an element and saves it into a runtime variable (e.g., `{{price}}`). Includes an optional **Parse as number** toggle which automatically strips currency symbols, commas, and letters, leaving only pure decimals behind.
+- **Calculate Math:** *Highly flexible computation engine.* Evaluates mathematical expressions using your extracted variables. 
+  - **Simple Math:** `{{price}} * {{quantity}}`
+  - **Ternary Logic:** `{{val}} < 100 ? {{val}} * 1.5 : {{val}} * 1.0`
+  - **Multi-line Range Calculations:** By using the `return` keyword, you can write full JavaScript block logic directly in the expression box. Perfect for calculating values across different numeric ranges:
+    ```javascript
+    if ({{val}} < 10) return {{val}} * 1.5;
+    if ({{val}} < 50) return {{val}} * 1.2;
+    return {{val}} * 1.0;
+    ```
+    *Note: Calculations run inside a secure Chrome Sandbox, meaning they fully bypass strict Content Security Policies (CSP) safely!*
+
+### 🔄 Logic & Flow Control
+- **If element exists / If not exists:** Branches your workflow execution based on the presence of an element. If the condition is false, execution instantly skips ahead to the next `End If` marker.
+- **End if:** Marks the end of a conditional block.
+- **Run Workflow (Nested):** Executes another saved workflow exactly as if it was a step. The nested workflow shares the exact same variable scope as the parent!
+
+### 📤 Output & Export
+- **Export Variables:** Instantly downloads all current runtime variables to your local machine as either a `.csv` or `.json` file.
+- **Send Webhook:** Performs a POST request to an external server URL, passing along the exact timestamp and all currently extracted variables.
+- **Take Screenshot:** Captures the current visible tab and saves it as a `.png` file to your downloads folder.
+- **Navigate to URL:** Redirects the current active tab to a new URL.
 
 ---
 

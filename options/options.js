@@ -817,10 +817,28 @@ async function onSave(e) {
   e.preventDefault();
   current.name = els.wfName.value.trim() || "Untitled workflow";
   current.folder = els.wfFolder.value.trim();
+  current.autoRun = els.wfAutoRun.checked;
   current.maxRetries = parseInt(els.wfMaxRetries.value, 10) || 0;
   current.scheduleInterval = parseInt(els.wfScheduleInterval.value, 10) || 0;
   current.scheduleUrl = els.wfScheduleUrl.value.trim();
+  
+  // Catch any pending site the user typed but forgot to click 'Add site' for
+  const pendingSite = els.newSite.value.trim();
+  if (pendingSite) {
+    if (!current.sites) current.sites = [];
+    current.sites.push(pendingSite);
+    els.newSite.value = "";
+  }
   current.sites = (current.sites || []).map((s) => s.trim()).filter(Boolean);
+  
+  // Catch any pending variable the user typed but forgot to click 'Add' for
+  const pendingVarName = els.newVarName.value.trim();
+  if (pendingVarName) {
+    if (!current.variables) current.variables = [];
+    current.variables.push({ name: pendingVarName, defaultValue: els.newVarDefault.value });
+    els.newVarName.value = "";
+    els.newVarDefault.value = "";
+  }
 
   // -- Inline step validation --
   const stepEls = els.stepList.querySelectorAll(".step");
@@ -952,7 +970,15 @@ async function onExport() {
   exportBtn2.addEventListener("click", () => {
     const selected = checks.filter(c => c.cb.checked).map(c => c.wf);
     if (selected.length === 0) { alert("Select at least one workflow."); return; }
-    downloadJson(`workflows_export_${Date.now()}.json`, selected);
+    
+    let filename;
+    if (selected.length === 1) {
+      filename = `${safeFileName(selected[0].name)}_${Date.now()}.json`;
+    } else {
+      filename = `taskorbit_workflows_export_${Date.now()}.json`;
+    }
+    
+    downloadJson(filename, selected);
     overlay.remove();
   });
   foot.append(cancelBtn, exportBtn2);
@@ -964,7 +990,7 @@ async function onExport() {
 
 function onExportOne() {
   if (!current) return;
-  downloadJson(safeFileName(current.name) + ".json", [current]);
+  downloadJson(`${safeFileName(current.name)}_${Date.now()}.json`, [current]);
 }
 
 async function onImport(e) {

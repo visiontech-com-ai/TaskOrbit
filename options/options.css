@@ -22,6 +22,7 @@ body {
   display: grid;
   grid-template-columns: 280px 1fr;
   min-height: 100vh;
+  padding-bottom: 45px;
 }
 
 .sidebar {
@@ -29,6 +30,9 @@ body {
   background: var(--surface);
   display: flex;
   flex-direction: column;
+  position: sticky;
+  top: 0;
+  height: calc(100vh - 45px);
 }
 
 .sidebar-head {
@@ -107,6 +111,7 @@ label.inline {
 }
 
 input[type="text"],
+input[type="number"],
 select,
 textarea {
   font: inherit;
