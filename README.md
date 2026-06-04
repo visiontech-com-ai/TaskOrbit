@@ -17,9 +17,10 @@ Each workflow is an ordered list of steps such as clicking an element, typing te
 - **Conditional Logic:** Branch your workflow with `If Element Exists` / `If Not Exists` / `End If` markers.
 - **Workflow Variables:** Define named variables with defaults; override them at run time from a prompt.
 - **Nested Workflows:** Call any other saved workflow as a step, sharing the same runtime variable scope.
-- **Data Extraction & Export:** Scrape text from the page into variables, then export all variables to a CSV or JSON file.
+- **Data Extraction & Math:** Scrape text from the page into variables (with an option to parse strictly as numbers), run math calculations (`Calculate Math` step), and export variables to CSV/JSON.
+- **Password Reveal Tool:** A standalone utility built into the extension. Right-click any password to reveal it, or configure TaskOrbit to automatically unmask passwords on all or specific sites.
 - **Retry & Error Handling:** Set per-workflow max retries; mark individual steps as Optional to skip failures gracefully.
-- **Live Progress Overlay:** A sleek floating panel appears on the target page during execution, showing per-step status in real time.
+- **Smart Feedback:** A sleek floating Progress Overlay shows per-step status in real time, and a Smart Activation Toast elegantly notifies you when background automation engages.
 - **Inline Validation:** The editor highlights misconfigured steps before saving.
 - **Workflow Duplication:** Clone any workflow with one click from the sidebar.
 - **Selective Import / Export:** Export any subset of workflows to JSON; re-import them with collision-safe ID generation.
@@ -83,7 +84,8 @@ Since this is a developer version without a build step, you can load it directly
 | `wait for network idle` | `idle duration`, `timeout` | Waits until all fetch/XHR activity stops for the idle duration. |
 | `navigate` | `value (URL)` | Navigates current tab to the URL. |
 | `take screenshot` | `value (prefix)` | Saves a PNG to `taskorbit_screenshots/`. |
-| `extract text` | `selector`, `variable name` | Reads element text/value into a runtime variable. |
+| `extract text` | `selector`, `variable name` | Reads element text/value into a runtime variable. Can optionally strip non-numeric characters. |
+| `calculate math` | `expression`, `variable name` | Evaluates a math expression (e.g. `{{price}} * 2`) and saves the result to a variable. |
 | `export variables` | `format (csv/json)` | Downloads all variables to `taskorbit_exports/`. |
 | `send webhook` | `URL`, `Authorization` | POSTs `{ timestamp, variables }` to an external endpoint. |
 | `run workflow` | workflow dropdown | Executes another workflow, sharing the same variables. |
@@ -121,7 +123,10 @@ Since this is a developer version without a build step, you can load it directly
 │   └── storage.js        # Data model, step types, storage helpers
 ├── content/
 │   ├── executor.js       # Injected step runner + live progress overlay
-│   └── recorder.js       # Injected interaction recorder (clicks, typing, key presses)
+│   ├── recorder.js       # Injected interaction recorder (clicks, typing, key presses)
+│   ├── interceptor.js    # Injected script to monitor network idle states
+│   ├── toast.js          # Smart activation notification toast
+│   └── autoReveal.js     # Background password reveal observer
 ├── popup/                # Toolbar popup UI (list, run, record)
 └── options/              # Full workflow editor UI (steps, variables, sites, import/export)
 ```

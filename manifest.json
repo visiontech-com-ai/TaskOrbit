@@ -14,9 +14,12 @@
     "default_title": "TaskOrbit"
   },
   "web_accessible_resources": [{
-    "resources": ["content/interceptor.js"],
+    "resources": ["content/interceptor.js", "sandbox.html", "sandbox.js"],
     "matches": ["<all_urls>"]
   }],
+  "sandbox": {
+    "pages": ["sandbox.html"]
+  },
   "content_scripts": [
     {
       "matches": ["<all_urls>"],

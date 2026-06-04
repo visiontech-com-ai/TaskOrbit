@@ -587,7 +587,7 @@
         if (!targetVar) throw new Error("No target variable provided for calculation");
         
         try {
-          const result = new Function("return (" + expr + ")")();
+          const result = await evaluateMathSafe(expr);
           if (typeof result !== "number" || isNaN(result)) {
             throw new Error("Expression did not evaluate to a valid number");
           }
@@ -735,6 +735,61 @@
     if (topLevel) setTimeout(removeProgressOverlay, 1200);
     return { ok: true, results };
   }
+
+  // ---- Safe Math Evaluator using Sandboxed iframe ----------------------------
+
+  let mathSandboxIframe = null;
+  let mathSandboxReady = false;
+  let mathSandboxQueue = [];
+  const mathResolvers = {};
+
+  function initMathSandbox() {
+    if (mathSandboxIframe) return;
+    mathSandboxIframe = document.createElement("iframe");
+    mathSandboxIframe.id = "taskorbit-math-sandbox";
+    mathSandboxIframe.src = chrome.runtime.getURL("sandbox.html");
+    mathSandboxIframe.style.display = "none";
+    
+    mathSandboxIframe.onload = () => {
+      mathSandboxReady = true;
+      for (const msg of mathSandboxQueue) {
+        mathSandboxIframe.contentWindow.postMessage(msg, "*");
+      }
+      mathSandboxQueue = [];
+    };
+    
+    document.body.appendChild(mathSandboxIframe);
+  }
+
+  window.addEventListener("message", (event) => {
+    if (event.data && event.data.taskorbit_math_id) {
+      const res = mathResolvers[event.data.taskorbit_math_id];
+      if (res) {
+        res(event.data);
+        delete mathResolvers[event.data.taskorbit_math_id];
+      }
+    }
+  });
+
+  async function evaluateMathSafe(expr) {
+    return new Promise((resolve, reject) => {
+      initMathSandbox();
+      const id = Date.now() + "_" + Math.random();
+      mathResolvers[id] = (data) => {
+        if (data.error) reject(new Error(data.error));
+        else resolve(data.result);
+      };
+      
+      const payload = { type: "EVAL_MATH", taskorbit_math_id: id, expr };
+      if (mathSandboxReady) {
+        mathSandboxIframe.contentWindow.postMessage(payload, "*");
+      } else {
+        mathSandboxQueue.push(payload);
+      }
+    });
+  }
+
+  // ---- Message Listener ----------------------------------------------------
 
   chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     if (msg && msg.type === "executeSteps") {
