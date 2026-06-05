@@ -25,7 +25,8 @@ export const STEP_TYPES = {
   screenshot: { label: "Take Screenshot", needs: ["value"] },
   if_exists: { label: "If Element Exists", needs: ["selector"] },
   if_not_exists: { label: "If Element Does Not Exist", needs: ["selector"] },
-  end_if: { label: "End If", needs: [] }
+  end_if: { label: "End If", needs: [] },
+  loop: { label: "Loop Container", needs: [] }
 };
 
 // How the `selector` string should be interpreted to find the target element.
@@ -60,7 +61,7 @@ export function newWorkflow(name = "Untitled workflow") {
 }
 
 export function newStep(type = "click") {
-  return {
+  const step = {
     type,
     selectorType: DEFAULT_SELECTOR_TYPE,
     selector: "",
@@ -69,6 +70,14 @@ export function newStep(type = "click") {
     optional: false,
     delayMs: type === "wait" ? 1000 : 0
   };
+  
+  if (type === "loop") {
+    step.mode = "repeat"; // 'repeat', 'whileExists'
+    step.count = 5;
+    step.steps = [];
+  }
+  
+  return step;
 }
 
 export async function getWorkflows() {

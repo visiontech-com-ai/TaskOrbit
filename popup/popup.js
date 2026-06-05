@@ -9,6 +9,7 @@ const varPromptEl = document.getElementById("varPrompt");
 const varInputsEl = document.getElementById("varInputs");
 const varRunBtn = document.getElementById("varRunBtn");
 const varCancelBtn = document.getElementById("varCancelBtn");
+const emergencyStopContainer = document.getElementById("emergencyStopContainer");
 
 const REC_STATE_KEY = "recordingState";
 const collapsedFolders = new Set();
@@ -18,6 +19,14 @@ let pendingRunId = null;
 document.getElementById("newBtn").addEventListener("click", onNew);
 document.getElementById("optionsBtn").addEventListener("click", () => chrome.runtime.openOptionsPage());
 document.getElementById("stopRecBtn").addEventListener("click", onStopRecording);
+document.getElementById("emergencyStopBtn").addEventListener("click", async () => {
+  const tabs = await chrome.tabs.query({});
+  for (const t of tabs) {
+    chrome.tabs.sendMessage(t.id, { type: "emergencyStop" }).catch(() => {});
+  }
+  setStatus("Emergency Stop signal sent.", "ok");
+  emergencyStopContainer.classList.add("hidden");
+});
 
 varCancelBtn.addEventListener("click", () => {
   varPromptEl.classList.add("hidden");
@@ -43,6 +52,22 @@ init();
 async function init() {
   await renderRecordingBanner();
   await render();
+  
+  // Check if active tab is currently running a workflow
+  const tab = await getActiveTab();
+  if (tab) {
+    try {
+      const res = await chrome.scripting.executeScript({
+        target: { tabId: tab.id },
+        func: () => !!document.getElementById('__vf_progress')
+      });
+      if (res && res[0] && res[0].result) {
+        emergencyStopContainer.classList.remove("hidden");
+      }
+    } catch (e) {
+      // Ignore errors (e.g. cannot access chrome:// URLs)
+    }
+  }
 }
 
 async function getActiveTab() {
@@ -240,6 +265,7 @@ async function onRun(workflowId) {
 
 async function doRun(workflowId, variables) {
   setStatus("Running...");
+  emergencyStopContainer.classList.remove("hidden");
   const tab = await getActiveTab();
   const res = await chrome.runtime.sendMessage({ 
     type: "runWorkflow", 
@@ -247,6 +273,7 @@ async function doRun(workflowId, variables) {
     tabId: tab.id,
     variables 
   });
+  emergencyStopContainer.classList.add("hidden");
   if (!res) {
     setStatus("No response", "err");
   } else if (res.ok) {

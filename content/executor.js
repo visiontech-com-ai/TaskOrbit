@@ -3,6 +3,7 @@
 (() => {
   if (window.__wfExecutorInstalled) return;
   window.__wfExecutorInstalled = true;
+  window.__vf_emergency_stop = false;
 
   // ---- Network Interceptor Injection ----------------------------------------
   (function injectNetworkInterceptor() {
@@ -69,32 +70,37 @@
       const label = document.createElement("span");
       label.style.cssText = "flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12px;color:#ccd;";
       const stepLabel = step.name || TYPE_LABELS[step.type] || step.type;
-      label.textContent = `${i + 1}. ${stepLabel}`;
+      const originalLabel = `${i + 1}. ${stepLabel}`;
+      label.textContent = originalLabel;
       row.appendChild(icon);
       row.appendChild(label);
       overlay.appendChild(row);
-      return { icon, label };
+      return { icon, label, originalLabel };
     });
 
     document.body.appendChild(overlay);
     progressOverlay = overlay;
   }
 
-  function updateProgressStep(i, status) {
+  function updateProgressStep(i, status, subtext = null) {
     if (!progressItems[i]) return;
-    const { icon, label } = progressItems[i];
+    const { icon, label, originalLabel } = progressItems[i];
     if (status === "running") {
       icon.textContent = "🔄";
       label.style.color = "#fff";
-    } else if (status === "ok") {
-      icon.textContent = "✅";
-      label.style.color = "#7eff9a";
-    } else if (status === "skipped") {
-      icon.textContent = "⏭️";
-      label.style.color = "#ffd86e";
-    } else if (status === "fail") {
-      icon.textContent = "❌";
-      label.style.color = "#ff7070";
+      if (subtext) label.textContent = `${originalLabel} ${subtext}`;
+    } else {
+      label.textContent = originalLabel;
+      if (status === "ok") {
+        icon.textContent = "✅";
+        label.style.color = "#7eff9a";
+      } else if (status === "skipped") {
+        icon.textContent = "⏭️";
+        label.style.color = "#ffd86e";
+      } else if (status === "fail") {
+        icon.textContent = "❌";
+        label.style.color = "#ff7070";
+      }
     }
   }
 
@@ -104,6 +110,14 @@
       progressOverlay = null;
     }
     progressItems = [];
+    
+    // Also remove the smart toast when execution finishes
+    const toast = document.getElementById("__to_smart_toast");
+    if (toast) {
+      toast.style.opacity = "0";
+      toast.style.transform = "translateY(30px)";
+      setTimeout(() => toast.remove(), 500);
+    }
   }
 
   // ---- Smart Activation Toast -----------------------------------------------
@@ -147,7 +161,7 @@
       <div style="font-size: 24px; line-height: 1; filter: drop-shadow(0 0 4px rgba(255,255,255,0.6));">✨</div>
       <div style="flex: 1; display: flex; flex-direction: column; line-height: 1.4;">
         <span style="font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; opacity: 0.9; margin-bottom: 2px; text-shadow: none; color: #ffffff;">Automation Active</span>
-        <span style="font-size: 14px; font-weight: 600; text-shadow: 0 0 8px rgba(255,255,255,0.5); color: #ffffff;">${text}</span>
+        <span id="__to_smart_toast_text" style="font-size: 14px; font-weight: 600; text-shadow: 0 0 8px rgba(255,255,255,0.5); color: #ffffff;">${text}</span>
       </div>
     `;
 
@@ -159,21 +173,20 @@
       toast.style.transform = "translateY(0)";
     });
 
-    let dismissTimeout = setTimeout(dismiss, 8000);
-
-    // Hover to pause auto-dismiss
-    toast.addEventListener('mouseenter', () => clearTimeout(dismissTimeout));
-    toast.addEventListener('mouseleave', () => dismissTimeout = setTimeout(dismiss, 8000));
+    // We no longer auto-dismiss the toast. 
+    // It stays visible to show loop progress and is removed by removeProgressOverlay() when the workflow finishes.
     
     // Click to dismiss immediately
-    toast.addEventListener('click', dismiss);
-
-    function dismiss() {
-      clearTimeout(dismissTimeout);
+    toast.addEventListener('click', () => {
       toast.style.opacity = "0";
       toast.style.transform = "translateY(30px)";
       setTimeout(() => toast.remove(), 500);
-    }
+    });
+  }
+
+  function updateSmartToastText(text) {
+    const el = document.getElementById("__to_smart_toast_text");
+    if (el) el.textContent = text;
   }
 
   function queryEl(step) {
@@ -198,14 +211,58 @@
           );
           return res.singleNodeValue || null;
         }
-        case "text":
-          return findByText(selector);
-        case "css":
+        case "text": {
+          const els = Array.from(document.body.querySelectorAll("*")).filter(
+            (e) => e.children.length === 0 && e.textContent.trim() === selector
+          );
+          return els.length > 0 ? els[0] : null;
+        }
         default:
           return document.querySelector(selector);
       }
-    } catch {
+    } catch (e) {
+      console.warn("TaskOrbit queryEl failed:", e);
       return null;
+    }
+  }
+
+  function queryEls(step) {
+    const selector = step.selector;
+    if (!selector) return [];
+    const type = step.selectorType || "css";
+    try {
+      switch (type) {
+        case "id": {
+          const el = document.getElementById(selector);
+          return el ? [el] : [];
+        }
+        case "name":
+          return Array.from(document.getElementsByName(selector));
+        case "xpath": {
+          const res = document.evaluate(
+            selector,
+            document,
+            null,
+            XPathResult.ORDERED_NODE_SNAPSHOT_TYPE,
+            null
+          );
+          const nodes = [];
+          for (let i = 0; i < res.snapshotLength; i++) {
+            nodes.push(res.snapshotItem(i));
+          }
+          return nodes;
+        }
+        case "text": {
+          return Array.from(document.body.querySelectorAll("*")).filter(
+            (e) => e.children.length === 0 && e.textContent.trim() === selector
+          );
+        }
+        default:
+          return Array.from(document.querySelectorAll(selector));
+      }
+    } catch (e) {
+      console.warn("TaskOrbit queryEls failed:", e);
+      return [];
     }
   }
 
@@ -661,6 +718,10 @@
   }
 
   async function executeSteps(steps, variables, maxRetries = 3, topLevel = false) {
+    if (topLevel) {
+      window.__vf_emergency_stop = false;
+    }
+
     MAX_RETRIES = maxRetries;
     const results = [];
     let skipDepth = 0;
@@ -671,7 +732,13 @@
     }
 
     for (let i = 0; i < steps.length; i++) {
-      const step = steps[i];
+      if (window.__vf_emergency_stop) {
+        if (topLevel) removeProgressOverlay();
+        return { ok: false, failedAt: i, error: "Emergency Stop triggered by user." };
+      }
+
+      // Create a shallow copy so we don't mutate the original step template
+      const step = { ...steps[i] };
       
       step.selector = replaceVars(step.selector, variables);
       if (step.type !== "extractText") {
@@ -679,6 +746,9 @@
       }
       if (typeof step.delayMs === "string") {
         step.delayMs = replaceVars(step.delayMs, variables);
+      }
+      if (typeof step.count === "string") {
+        step.count = replaceVars(step.count, variables);
       }
       
       if (skipDepth > 0) {
@@ -715,6 +785,64 @@
           continue;
         }
 
+        if (step.type === "loop") {
+          if (topLevel) updateProgressStep(i, "running");
+          const maxIterations = 100;
+          let iterations = 0;
+          
+          if (step.mode === "repeat") {
+            const countStr = typeof step.count === "string" ? replaceVars(step.count, variables) : step.count;
+            const count = parseInt(countStr, 10) || 1;
+            while (iterations < count && iterations < maxIterations && !window.__vf_emergency_stop) {
+              if (topLevel) {
+                updateProgressStep(i, "running", `[${iterations + 1}/${count}]`);
+                updateSmartToastText(`Processing item ${iterations + 1} of ${count}...`);
+              }
+              const subVars = { ...variables, loop_index: iterations, loop_index_1: iterations + 1 };
+              const subResult = await executeSteps(step.steps || [], subVars, MAX_RETRIES, false);
+              if (!subResult.ok) throw new Error(subResult.error || "Loop execution failed");
+              iterations++;
+            }
+          } else if (step.mode === "whileExists") {
+            while (queryEl(step) && iterations < maxIterations && !window.__vf_emergency_stop) {
+              if (topLevel) {
+                updateProgressStep(i, "running", `[Iteration ${iterations + 1}]`);
+                updateSmartToastText(`Processing iteration ${iterations + 1}...`);
+              }
+              const subVars = { ...variables, loop_index: iterations, loop_index_1: iterations + 1 };
+              const subResult = await executeSteps(step.steps || [], subVars, MAX_RETRIES, false);
+              if (!subResult.ok) throw new Error(subResult.error || "Loop execution failed");
+              iterations++;
+            }
+          } else if (step.mode === "forEach") {
+            const els = queryEls(step);
+            const count = els.length;
+            
+            // Tag elements with a unique data attribute so they can be reliably targeted
+            // regardless of DOM shifting, hidden rows, or multiple tables.
+            els.forEach((el, idx) => el.setAttribute("data-to-loop-idx", idx + 1));
+            
+            while (iterations < count && iterations < maxIterations && !window.__vf_emergency_stop) {
+              if (topLevel) {
+                updateProgressStep(i, "running", `[Item ${iterations + 1}/${count}]`);
+                updateSmartToastText(`Processing row ${iterations + 1} of ${count}...`);
+              }
+              const subVars = { ...variables, loop_index: iterations, loop_index_1: iterations + 1 };
+              const subResult = await executeSteps(step.steps || [], subVars, MAX_RETRIES, false);
+              if (!subResult.ok) throw new Error(subResult.error || "Loop execution failed");
+              iterations++;
+            }
+          }
+          
+          if (window.__vf_emergency_stop) {
+            throw new Error("Emergency Stop triggered by user.");
+          }
+          
+          if (topLevel) updateProgressStep(i, "ok");
+          results.push({ index: i, type: step.type, ok: true });
+          continue;
+        }
+
         if (topLevel) updateProgressStep(i, "running");
         await runStep(step, variables);
         if (topLevel) updateProgressStep(i, "ok");
@@ -728,7 +856,7 @@
           if (topLevel) updateProgressStep(i, "fail");
           results.push({ index: i, type: step.type, ok: false, error: e.message });
           setTimeout(removeProgressOverlay, 2500);
-          return { ok: false, failedAt: i, results };
+          return { ok: false, failedAt: i, error: e.message, results };
         }
       }
     }
@@ -795,6 +923,12 @@
     if (msg && msg.type === "executeSteps") {
       executeSteps(msg.steps || [], msg.variables || {}, msg.maxRetries, true).then(sendResponse);
       return true; // async
+    }
+    if (msg && msg.type === "emergencyStop") {
+      window.__vf_emergency_stop = true;
+      removeProgressOverlay();
+      sendResponse({ ok: true });
+      return false;
     }
     return false;
   });
