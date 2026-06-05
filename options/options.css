@@ -412,7 +412,7 @@ code {
 }
 
 .hidden {
-  display: none;
+  display: none !important;
 }
 
 /* ---- Workflow list item with dup button ---- */

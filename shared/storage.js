@@ -16,18 +16,18 @@ export const STEP_TYPES = {
   waitInvisible: { label: "Wait for element to be invisible", needs: ["selector", "delayMs"] },
   wait: { label: "Wait (delay)", needs: ["delayMs"] },
   waitNetworkIdle: { label: "Wait for Network Idle", needs: ["value", "delayMs"] },
-  extractText: { label: "Extract Text", needs: ["selector", "value"] },
-  calculateMath: { label: "Calculate Math", needs: ["value", "selector"] },
-  exportData: { label: "Export Variables", needs: ["value"] },
-  runWorkflow: { label: "Run Workflow (Nested)", needs: ["value"] },
+  extractText: { label: "Extract Text", needs: ["selector", "value"], proFeature: "variables" },
+  calculateMath: { label: "Calculate Math", needs: ["value", "selector"], proFeature: "variables" },
+  exportData: { label: "Export Variables", needs: ["value"], proFeature: "variables" },
+  runWorkflow: { label: "Run Workflow (Nested)", needs: ["value"], proFeature: "advanced" },
   pressKey: { label: "Press Key", needs: ["selector", "value"] },
-  sendWebhook: { label: "Send Webhook", needs: ["value", "selector"] },
+  sendWebhook: { label: "Send Webhook", needs: ["value", "selector"], proFeature: "advanced" },
   navigate: { label: "Navigate to URL", needs: ["value"] },
   screenshot: { label: "Take Screenshot", needs: ["value"] },
-  if_exists: { label: "If Element Exists", needs: ["selector"] },
-  if_not_exists: { label: "If Element Does Not Exist", needs: ["selector"] },
-  end_if: { label: "End If", needs: [] },
-  loop: { label: "Loop Container", needs: [] }
+  if_exists: { label: "If Element Exists", needs: ["selector"], proFeature: "conditions" },
+  if_not_exists: { label: "If Element Does Not Exist", needs: ["selector"], proFeature: "conditions" },
+  end_if: { label: "End If", needs: [], proFeature: "conditions" },
+  loop: { label: "Loop Container", needs: [], proFeature: "loops" }
 };
 
 // How the `selector` string should be interpreted to find the target element.

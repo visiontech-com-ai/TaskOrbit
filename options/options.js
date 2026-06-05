@@ -15,6 +15,8 @@ import {
   getSettings,
   saveSettings
 } from "../shared/storage.js";
+import { getCapabilities } from "../shared/capabilities.js";
+import { getActiveLicense, activateLicense, removeLicense } from "../shared/license.js";
 
 const els = {
   wfList: document.getElementById("wfList"),
@@ -64,10 +66,12 @@ let workflows = [];
 let current = null; // working copy of the selected workflow
 const collapsedFolders = new Set(); // persists collapse state for the session
 let extensionSettings = null;
+let capabilities = null;
 
 init();
 
 async function init() {
+  capabilities = await getCapabilities();
   populateStepTypeSelect();
   workflows = await getWorkflows();
   extensionSettings = await getSettings();
@@ -84,9 +88,18 @@ function populateStepTypeSelect() {
   els.newStepType.innerHTML = "";
   const sorted = Object.entries(STEP_TYPES).sort(([, a], [, b]) => a.label.localeCompare(b.label));
   for (const [type, def] of sorted) {
+    const isLocked = def.proFeature && !capabilities.allowDataProcessing && !capabilities.allowConditions && !capabilities.allowLoops && !capabilities.allowVariables;
+    // Actually we can be more granular. For now, if def.proFeature exists and ANY of the advanced features are disabled (Lite), lock it.
+    let locked = false;
+    if (def.proFeature === "loops" && !capabilities.allowLoops) locked = true;
+    if (def.proFeature === "conditions" && !capabilities.allowConditions) locked = true;
+    if (def.proFeature === "variables" && !capabilities.allowVariables) locked = true;
+    if (def.proFeature === "advanced" && !capabilities.allowDataProcessing) locked = true;
+
     const opt = document.createElement("option");
     opt.value = type;
-    opt.textContent = def.label;
+    opt.textContent = (locked ? "🔒 " : "") + def.label + (locked ? " (Pro)" : "");
+    if (locked) opt.dataset.locked = "true";
     els.newStepType.appendChild(opt);
   }
 }
@@ -114,7 +127,13 @@ function bindEvents() {
   els.wfFolder.addEventListener("input", () => {
     if (current) current.folder = els.wfFolder.value;
   });
-  els.wfAutoRun.addEventListener("change", () => {
+  els.wfAutoRun.addEventListener("change", (e) => {
+    if (!capabilities.allowAutoRun) {
+      e.preventDefault();
+      els.wfAutoRun.checked = false;
+      showUpgradeModal();
+      return;
+    }
     if (current) current.autoRun = els.wfAutoRun.checked;
   });
   els.wfMaxRetries.addEventListener("input", () => {
@@ -149,6 +168,128 @@ function bindEvents() {
       renderSettings();
     });
   });
+
+  const closeUpgradeModalBtn = document.getElementById("closeUpgradeModalBtn");
+  if (closeUpgradeModalBtn) {
+    closeUpgradeModalBtn.addEventListener("click", hideUpgradeModal);
+  }
+
+  const modalActivateBtn = document.getElementById("modalActivateLicenseBtn");
+  if (modalActivateBtn) {
+    modalActivateBtn.addEventListener("click", () => onActivateLicense("modal"));
+  }
+
+  const activateLicenseBtn = document.getElementById("activateLicenseBtn");
+  if (activateLicenseBtn) {
+    activateLicenseBtn.addEventListener("click", () => onActivateLicense("settings"));
+  }
+
+  const removeLicenseBtn = document.getElementById("removeLicenseBtn");
+  if (removeLicenseBtn) {
+    removeLicenseBtn.addEventListener("click", onRemoveLicense);
+  }
+
+  els.newStepType.addEventListener("change", () => {
+    const selectedOption = els.newStepType.options[els.newStepType.selectedIndex];
+    if (selectedOption && selectedOption.dataset.locked === "true") {
+      revertNewStepTypeSelect();
+      showUpgradeModal();
+    }
+  });
+}
+
+async function onActivateLicense(source = "settings") {
+  const isModal = source === "modal";
+  const input = document.getElementById(isModal ? "modalLicenseKeyInput" : "licenseKeyInput");
+  const emailInput = document.getElementById(isModal ? "modalLicenseEmailInput" : "licenseEmailInput");
+  const msg = document.getElementById(isModal ? "modalLicenseMessage" : "licenseMessage");
+  
+  if (!input || !msg) return;
+  
+  const key = input.value.trim();
+  const email = emailInput ? emailInput.value.trim() : "";
+  
+  if (!email) {
+    msg.textContent = "Please enter your email address.";
+    msg.style.color = "var(--error)";
+    return;
+  }
+  
+  if (!key) {
+    msg.textContent = "Please enter a key.";
+    msg.style.color = "var(--error)";
+    return;
+  }
+  
+  msg.textContent = "Validating...";
+  msg.style.color = "var(--text-muted)";
+  
+  const result = await activateLicense(key, email);
+  if (result.success) {
+    msg.textContent = "License activated successfully!";
+    msg.style.color = "var(--success)";
+    setTimeout(async () => {
+      if (isModal) hideUpgradeModal();
+      
+      // Update capabilities dynamically
+      capabilities = await getCapabilities();
+      
+      // Re-populate and re-render UI elements
+      populateStepTypeSelect();
+      renderSettings();
+      if (current) {
+        renderEditor();
+      }
+      renderList();
+      
+      // Reset inputs & messages
+      const mInput = document.getElementById("modalLicenseKeyInput");
+      const mEmail = document.getElementById("modalLicenseEmailInput");
+      const mMsg = document.getElementById("modalLicenseMessage");
+      const sInput = document.getElementById("licenseKeyInput");
+      const sEmail = document.getElementById("licenseEmailInput");
+      const sMsg = document.getElementById("licenseMessage");
+      
+      if (mInput) mInput.value = "";
+      if (mEmail) mEmail.value = "";
+      if (mMsg) mMsg.textContent = "";
+      if (sInput) sInput.value = "";
+      if (sEmail) sEmail.value = "";
+      if (sMsg) sMsg.textContent = "";
+    }, 600);
+  } else {
+    msg.textContent = result.error || "Invalid license.";
+    msg.style.color = "var(--error)";
+  }
+}
+
+async function onRemoveLicense() {
+  if (confirm("Are you sure you want to remove your Pro license?")) {
+    await removeLicense();
+    capabilities = await getCapabilities();
+    populateStepTypeSelect();
+    renderSettings();
+    if (current) {
+      renderEditor();
+    }
+    renderList();
+  }
+}
+
+function showUpgradeModal() {
+  const modal = document.getElementById("upgradeModal");
+  if (modal) {
+    modal.style.display = "flex";
+    modal.classList.remove("hidden");
+  }
+}
+
+function hideUpgradeModal() {
+  const modal = document.getElementById("upgradeModal");
+  if (modal) {
+    modal.style.display = "none";
+    modal.classList.add("hidden");
+  }
 }
 
 // ---- Sidebar list ---------------------------------------------------------
@@ -224,7 +365,7 @@ function renderList() {
       nameDiv.textContent = wf.name || "(untitled)";
       const sub = document.createElement("div");
       sub.className = "wf-sub";
-      const parts = [`${wf.steps.length} step(s)`];
+      const parts = [`${countTotalSteps(wf.steps)} step(s)`];
       if (wf.autoRun) parts.push("auto");
       if (wf.shortcut) parts.push(wf.shortcut);
       sub.textContent = parts.join(" \u00B7 ");
@@ -272,6 +413,26 @@ function renderEditor() {
   els.wfName.value = current.name || "";
   els.wfFolder.value = current.folder || "";
   els.wfAutoRun.checked = !!current.autoRun;
+  
+  if (!capabilities.allowAutoRun) {
+    els.wfAutoRun.parentElement.innerHTML = `<input id="wfAutoRun" type="checkbox" /> 🔒 Auto-run (Pro)`;
+    // Re-bind els.wfAutoRun because we replaced HTML
+    els.wfAutoRun = document.getElementById("wfAutoRun");
+    els.wfAutoRun.addEventListener("change", (e) => {
+      e.preventDefault();
+      els.wfAutoRun.checked = false;
+      showUpgradeModal();
+    });
+  } else {
+    els.wfAutoRun.parentElement.innerHTML = `<input id="wfAutoRun" type="checkbox" /> Auto-run`;
+    // Re-bind els.wfAutoRun because we replaced HTML
+    els.wfAutoRun = document.getElementById("wfAutoRun");
+    els.wfAutoRun.checked = !!current.autoRun;
+    els.wfAutoRun.addEventListener("change", () => {
+      if (current) current.autoRun = els.wfAutoRun.checked;
+    });
+  }
+
   els.wfMaxRetries.value = current.maxRetries !== undefined ? current.maxRetries : 3;
   els.wfScheduleInterval.value = current.scheduleInterval || 0;
   els.wfScheduleUrl.value = current.scheduleUrl || "";
@@ -504,14 +665,31 @@ function renderStep(step, i, parentArray) {
 
   const typeSel = document.createElement("select");
   const sortedTypes = Object.entries(STEP_TYPES).sort(([, a], [, b]) => a.label.localeCompare(b.label));
+  let previousTypeValue = step.type;
+
   for (const [type, def] of sortedTypes) {
+    let locked = false;
+    if (def.proFeature === "loops" && !capabilities.allowLoops) locked = true;
+    if (def.proFeature === "conditions" && !capabilities.allowConditions) locked = true;
+    if (def.proFeature === "variables" && !capabilities.allowVariables) locked = true;
+    if (def.proFeature === "advanced" && !capabilities.allowDataProcessing) locked = true;
+
     const opt = document.createElement("option");
     opt.value = type;
-    opt.textContent = def.label;
+    opt.textContent = (locked ? "🔒 " : "") + def.label + (locked ? " (Pro)" : "");
+    if (locked) opt.dataset.locked = "true";
     if (type === step.type) opt.selected = true;
     typeSel.appendChild(opt);
   }
+  
   typeSel.addEventListener("change", () => {
+    const selectedOption = typeSel.options[typeSel.selectedIndex];
+    if (selectedOption.dataset.locked === "true") {
+      typeSel.value = previousTypeValue;
+      showUpgradeModal();
+      return;
+    }
+    previousTypeValue = typeSel.value;
     step.type = typeSel.value;
     step.selectorType = DEFAULT_SELECTOR_TYPE;
     step.selector = "";
@@ -767,6 +945,10 @@ function renderStep(step, i, parentArray) {
     addChildBtn.style.alignSelf = "flex-start";
     addChildBtn.style.marginTop = "6px";
     addChildBtn.addEventListener("click", () => {
+      if (countTotalSteps(current.steps) >= capabilities.maxSteps) {
+        showUpgradeModal();
+        return;
+      }
       step.steps.push(newStep("click"));
       renderSteps();
     });
@@ -850,9 +1032,50 @@ function iconBtn(symbol, title, onClick) {
   return b;
 }
 
+function countTotalSteps(steps = []) {
+  let count = 0;
+  for (const step of steps) {
+    count++;
+    if (step.steps && step.steps.length > 0) {
+      count += countTotalSteps(step.steps);
+    }
+  }
+  return count;
+}
+
+function revertNewStepTypeSelect() {
+  for (const opt of els.newStepType.options) {
+    if (opt.dataset.locked !== "true") {
+      els.newStepType.value = opt.value;
+      break;
+    }
+  }
+}
+
 function onAddStep() {
   if (!current.steps) current.steps = [];
-  current.steps.push(newStep(els.newStepType.value));
+  if (countTotalSteps(current.steps) >= capabilities.maxSteps) {
+    showUpgradeModal();
+    return;
+  }
+  
+  const type = els.newStepType.value;
+  const def = STEP_TYPES[type];
+  if (def && def.proFeature) {
+    let locked = false;
+    if (def.proFeature === "loops" && !capabilities.allowLoops) locked = true;
+    if (def.proFeature === "conditions" && !capabilities.allowConditions) locked = true;
+    if (def.proFeature === "variables" && !capabilities.allowVariables) locked = true;
+    if (def.proFeature === "advanced" && !capabilities.allowDataProcessing) locked = true;
+    
+    if (locked) {
+      revertNewStepTypeSelect();
+      showUpgradeModal();
+      return;
+    }
+  }
+
+  current.steps.push(newStep(type));
   renderSteps();
 }
 
@@ -978,6 +1201,10 @@ async function onSave(e) {
 }
 
 async function onNew() {
+  if (workflows.length >= capabilities.maxWorkflows) {
+    showUpgradeModal();
+    return;
+  }
   const wf = newWorkflow();
   await upsertWorkflow(wf);
   workflows = await getWorkflows();
@@ -1102,9 +1329,15 @@ async function onImport(e) {
       w.name = w.name || "Imported workflow";
     }
     workflows = workflows.concat(valid);
+    if (workflows.length > capabilities.maxWorkflows) {
+      workflows = workflows.slice(0, capabilities.maxWorkflows);
+      setSaveStatus(`Imported partial. Limit reached (${capabilities.maxWorkflows}).`, "err");
+      showUpgradeModal();
+    } else {
+      setSaveStatus(`Imported ${valid.length} workflow(s).`, "ok");
+    }
     await saveWorkflows(workflows);
     renderList();
-    setSaveStatus(`Imported ${valid.length} workflow(s).`, "ok");
   } catch (err) {
     setSaveStatus("Import failed: " + err.message, "err");
   } finally {
@@ -1199,6 +1432,7 @@ function onViewSettings() {
   current = null;
   renderList();
   document.querySelector(".editor").classList.add("hidden");
+  els.emptyEditor.classList.add("hidden");
   els.logsView.classList.add("hidden");
   els.settingsView.classList.remove("hidden");
 }
@@ -1239,6 +1473,51 @@ function renderSettings() {
     row.appendChild(del);
     els.revealSiteList.appendChild(row);
   });
+  
+  renderLicenseStatus();
+}
+
+async function renderLicenseStatus() {
+  const license = await getActiveLicense();
+  const badge = document.getElementById("currentTierBadge");
+  const text = document.getElementById("licenseStatusText");
+  const input = document.getElementById("licenseKeyInput");
+  const emailInput = document.getElementById("licenseEmailInput");
+  const activateBtn = document.getElementById("activateLicenseBtn");
+  const removeBtn = document.getElementById("removeLicenseBtn");
+  const msg = document.getElementById("licenseMessage");
+
+  if (!badge || !text) return;
+
+  if (license.tier === "PRO") {
+    badge.textContent = "PRO";
+    badge.style.background = "#dbeafe";
+    badge.style.color = "#1e40af";
+    text.textContent = "TaskOrbit Pro is active. All advanced features unlocked!";
+    input.value = license.key ? "•".repeat(license.key.length) : "••••••••••••";
+    input.disabled = true;
+    if (emailInput) {
+      emailInput.value = license.email || "";
+      emailInput.disabled = true;
+    }
+    activateBtn.disabled = true;
+    removeBtn.classList.remove("hidden");
+    if (msg) msg.textContent = "";
+  } else {
+    badge.textContent = "LITE";
+    badge.style.background = "#e2e8f0";
+    badge.style.color = "#475569";
+    text.textContent = "TaskOrbit Lite (Free) is active. Upgrade to unlock loops, conditions, and auto-run.";
+    input.value = "";
+    input.disabled = false;
+    if (emailInput) {
+      emailInput.value = "";
+      emailInput.disabled = false;
+    }
+    activateBtn.disabled = false;
+    removeBtn.classList.add("hidden");
+    if (msg) msg.textContent = "";
+  }
 }
 
 function onAddRevealSite() {
