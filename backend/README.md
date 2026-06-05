@@ -48,6 +48,11 @@ The test suite will verify:
 - Key revocation (`/v1/admin/license/revoke`).
 - Re-verification block of revoked keys.
 
+## Admin Control Center Dashboard
+A secure, premium dashboard is served statically at `/admin/`.
+- **Authentication**: Requires the `ADMIN_SECRET` key to enter.
+- **Features**: Generates license keys (with optional email & name registration), searches/filters through all generated keys, displays active/revoked/expired status, copies keys to clipboard, and handles revocation on click.
+
 ---
 
 ## Admin License Management API
@@ -63,7 +68,9 @@ Generates one or more unique keys (`TO-XXXX-XXXX-XXXX`).
   {
     "tier": "PRO",
     "durationDays": 30, // 0 or null for lifetime access
-    "count": 5          // Number of keys to generate (1-100)
+    "count": 5,         // Number of keys to generate (1-100)
+    "email": "client@example.com", // Optional: Associate client email
+    "name": "John Doe"  // Optional: Associate client name
   }
   ```
 - **Example Curl**:
@@ -71,7 +78,7 @@ Generates one or more unique keys (`TO-XXXX-XXXX-XXXX`).
   curl -X POST https://taskorbit.subho.net/v1/admin/license/generate \
     -H "Content-Type: application/json" \
     -H "X-Admin-Secret: YOUR_ADMIN_SECRET" \
-    -d '{"tier": "PRO", "durationDays": 30, "count": 1}'
+    -d '{"tier": "PRO", "durationDays": 30, "count": 1, "email": "client@example.com", "name": "John Doe"}'
   ```
 
 ### 2. Revoke a License Key
@@ -92,4 +99,27 @@ Deactivates a license key instantly, preventing verification or silent renewals.
     -H "Content-Type: application/json" \
     -H "X-Admin-Secret: YOUR_ADMIN_SECRET" \
     -d '{"licenseKey": "TO-ABCD-1234-EFGH"}'
+  ```
+
+---
+
+## Public Verification API
+
+### Verify License Key
+Validates a key and issues a signed 30-day JWT. If the key was generated with an associated email, the verification endpoint validates that the input email matches the registered email.
+- **Endpoint**: `POST /v1/license/verify`
+- **Headers**:
+  - `Content-Type: application/json`
+- **Payload**:
+  ```json
+  {
+    "licenseKey": "TO-XXXX-XXXX-XXXX",
+    "email": "client@example.com" // Required if the key was created with an email
+  }
+  ```
+- **Example Curl**:
+  ```bash
+  curl -X POST https://taskorbit.subho.net/v1/license/verify \
+    -H "Content-Type: application/json" \
+    -d '{"licenseKey": "TO-YSF7-C721-GFWX", "email": "client@example.com"}'
   ```

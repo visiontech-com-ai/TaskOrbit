@@ -25,12 +25,13 @@ Unlike heavy desktop RPA tools or expensive cloud solutions, TaskOrbit runs enti
 ## ✨ Key Features
 
 - **🔴 Live Workflow Recording:** Build automations simply by performing the actions yourself. TaskOrbit records your clicks, keystrokes, and selections in real-time.
-- **⚡ Auto-Run System:** Configure workflows to execute automatically the moment you land on specific websites.
+- **⚡ Auto-Run System:** Configure workflows to execute automatically the moment you land on specific websites (Pro tier).
 - **🧩 Intuitive Visual Editor:** A sleek, drag-and-drop interface for fine-tuning workflows, adding delays, and configuring custom logic.
+- **💎 Lite vs Pro Tier System:** Enforces strict limits for Free (Lite) users (up to 3 workflows, max 10 steps) while unlocking advanced logic (Loops, If/Else Conditions, Variables) via cryptographically signed license keys.
 - **🔒 Privacy-First Architecture:** 100% local execution. Your data and workflows never leave your machine.
 - **📦 Import & Export:** Share your automations with colleagues or back them up effortlessly via JSON.
-- **🗃️ Robust Data Extraction:** Scrape text, calculate math dynamically, and export variables directly to CSV or JSON.
-- **⏱️ Smart Scheduling:** Run background tasks automatically on a recurring schedule.
+- **🗃️ Robust Data Extraction:** Scrape text, calculate math dynamically, and export variables directly to CSV or JSON (Pro tier).
+- **⏱️ Smart Scheduling:** Run background tasks automatically on a recurring schedule (Pro tier).
 
 ---
 
@@ -180,6 +181,16 @@ graph TD
 
 ---
 
+## 🖥️ Licensing Backend & Control Center
+
+TaskOrbit features a secure, containerized licensing backend designed to run on Docker environments:
+* **Express API Server:** Handles CORS requests from chrome extensions (`chrome-extension://*`), request rate-limiting, and signed JWT issuance (valid for up to 30 days) with a 7-day offline grace period.
+* **SQLite3 Database:** Stores active, revoked, and expired license keys linked to optional client emails and names.
+* **Admin Control Center:** A premium dark-themed dashboard served at `/admin` that requires your `ADMIN_SECRET` access key (saved in `sessionStorage`). It allows live generation, filtering/searching by user details, key clipboard copies, and key revocation.
+* **Docker Orchestration:** Simple multi-stage `Dockerfile` and `docker-compose.yml` with host volume mounting for database persistence.
+
+---
+
 ## ⚠️ Limitations
 
 While powerful, TaskOrbit operates within the boundaries of modern browser security constraints:
@@ -196,9 +207,11 @@ While powerful, TaskOrbit operates within the boundaries of modern browser secur
 We are constantly working to improve TaskOrbit. Here's what is currently planned:
 
 ### 🔜 Planned Features
-- [ ] **Variables:** Advanced workflow-level variable definitions.
-- [ ] **Conditional Logic:** Native If/Else branching based on page state.
-- [ ] **Loops:** Iterate over lists or tables dynamically.
+- [x] **Variables:** Advanced workflow-level variable definitions.
+- [x] **Conditional Logic:** Native If/Else branching based on page state.
+- [x] **Loops:** Iterate over lists or tables dynamically.
+- [x] **Licensing Backend:** Node.js, SQLite3, and JWT validation server.
+- [x] **Admin Dashboard:** Secure single-page control center for managing keys.
 - [ ] **Workflow Templates:** Pre-built configurations for popular platforms.
 - [ ] **Marketplace:** A community hub to share and discover workflows.
 - [ ] **AI-assisted Selector Recovery:** Self-healing workflows when website layouts change.
