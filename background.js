@@ -41,6 +41,9 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     case "syncAlarms":
       syncAlarms().then(sendResponse);
       return true;
+    case "addLog":
+      addLog(msg.entry).then(sendResponse);
+      return true;
     default:
       return false;
   }
@@ -82,6 +85,8 @@ async function runWorkflow(workflowId, tabId, variables = null) {
     try {
       const result = await chrome.tabs.sendMessage(tab.id, {
         type: "executeSteps",
+        workflowId: workflow.id,
+        workflowName: workflow.name,
         steps: workflow.steps,
         variables: variables || {},
         maxRetries: workflow.maxRetries !== undefined ? workflow.maxRetries : 3

@@ -13,6 +13,7 @@ export const STEP_TYPES = {
   selectOption: { label: "Select option", needs: ["selector", "value"] },
   waitFor: { label: "Wait for element", needs: ["selector", "delayMs"] },
   waitVisible: { label: "Wait for element to be visible", needs: ["selector", "delayMs"] },
+  waitInvisible: { label: "Wait for element to be invisible", needs: ["selector", "delayMs"] },
   wait: { label: "Wait (delay)", needs: ["delayMs"] },
   waitNetworkIdle: { label: "Wait for Network Idle", needs: ["value", "delayMs"] },
   extractText: { label: "Extract Text", needs: ["selector", "value"] },

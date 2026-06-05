@@ -48,6 +48,7 @@
       "wait": "Wait (delay)",
       "waitFor": "Wait for Element",
       "waitVisible": "Wait Visible",
+      "waitInvisible": "Wait Invisible",
       "waitNetwork": "Wait for Network Idle",
       "navigate": "Navigate to URL",
       "screenshot": "Take Screenshot",
@@ -448,6 +449,16 @@
         }
         return;
       }
+      case "waitInvisible": {
+        const timeoutMs = Number(step.delayMs) || 5000;
+        const deadline = Date.now() + timeoutMs;
+        while (Date.now() < deadline) {
+          const el = queryEl(step);
+          if (!el || !isInteractable(el)) return; // Success: it's invisible or gone
+          await sleep(100);
+        }
+        throw new Error("Timed out waiting for element to be invisible: " + step.selector);
+      }
 
       case "waitNetworkIdle": {
         const timeoutMs = Number(step.delayMs) || 10000;
@@ -793,30 +804,47 @@
           if (step.mode === "repeat") {
             const countStr = typeof step.count === "string" ? replaceVars(step.count, variables) : step.count;
             const count = parseInt(countStr, 10) || 1;
+            console.log(`[TaskOrbit] Starting 'repeat' loop for ${count} iterations.`);
             while (iterations < count && iterations < maxIterations && !window.__vf_emergency_stop) {
               if (topLevel) {
                 updateProgressStep(i, "running", `[${iterations + 1}/${count}]`);
                 updateSmartToastText(`Processing item ${iterations + 1} of ${count}...`);
               }
+              console.log(`[TaskOrbit] 'repeat' loop iteration ${iterations + 1}/${count} starting.`);
               const subVars = { ...variables, loop_index: iterations, loop_index_1: iterations + 1 };
               const subResult = await executeSteps(step.steps || [], subVars, MAX_RETRIES, false);
-              if (!subResult.ok) throw new Error(subResult.error || "Loop execution failed");
+              if (!subResult.ok) {
+                const errMsg = `Iteration ${iterations + 1} failed: ` + (subResult.error || "Loop execution failed");
+                chrome.runtime.sendMessage({ type: "addLog", entry: { workflowId: window.__wfId, workflowName: window.__wfName, durationMs: 0, status: "error", errorMessage: errMsg } }).catch(() => {});
+                throw new Error(errMsg);
+              }
+              console.log(`[TaskOrbit] 'repeat' loop iteration ${iterations + 1}/${count} completed.`);
+              chrome.runtime.sendMessage({ type: "addLog", entry: { workflowId: window.__wfId, workflowName: window.__wfName, durationMs: 0, status: "success", errorMessage: `Loop 'repeat' item ${iterations + 1}/${count} completed.` } }).catch(() => {});
               iterations++;
             }
           } else if (step.mode === "whileExists") {
+            console.log(`[TaskOrbit] Starting 'whileExists' loop for selector: ${step.selector}`);
             while (queryEl(step) && iterations < maxIterations && !window.__vf_emergency_stop) {
               if (topLevel) {
                 updateProgressStep(i, "running", `[Iteration ${iterations + 1}]`);
                 updateSmartToastText(`Processing iteration ${iterations + 1}...`);
               }
+              console.log(`[TaskOrbit] 'whileExists' loop iteration ${iterations + 1} starting.`);
               const subVars = { ...variables, loop_index: iterations, loop_index_1: iterations + 1 };
               const subResult = await executeSteps(step.steps || [], subVars, MAX_RETRIES, false);
-              if (!subResult.ok) throw new Error(subResult.error || "Loop execution failed");
+              if (!subResult.ok) {
+                const errMsg = `Iteration ${iterations + 1} failed: ` + (subResult.error || "Loop execution failed");
+                chrome.runtime.sendMessage({ type: "addLog", entry: { workflowId: window.__wfId, workflowName: window.__wfName, durationMs: 0, status: "error", errorMessage: errMsg } }).catch(() => {});
+                throw new Error(errMsg);
+              }
+              console.log(`[TaskOrbit] 'whileExists' loop iteration ${iterations + 1} completed.`);
+              chrome.runtime.sendMessage({ type: "addLog", entry: { workflowId: window.__wfId, workflowName: window.__wfName, durationMs: 0, status: "success", errorMessage: `Loop 'whileExists' iteration ${iterations + 1} completed.` } }).catch(() => {});
               iterations++;
             }
           } else if (step.mode === "forEach") {
             const els = queryEls(step);
             const count = els.length;
+            console.log(`[TaskOrbit] Starting 'forEach' loop. Found ${count} elements for selector: ${step.selector}`);
             
             // Tag elements with a unique data attribute so they can be reliably targeted
             // regardless of DOM shifting, hidden rows, or multiple tables.
@@ -827,9 +855,16 @@
                 updateProgressStep(i, "running", `[Item ${iterations + 1}/${count}]`);
                 updateSmartToastText(`Processing row ${iterations + 1} of ${count}...`);
               }
+              console.log(`[TaskOrbit] 'forEach' loop item ${iterations + 1}/${count} starting.`);
               const subVars = { ...variables, loop_index: iterations, loop_index_1: iterations + 1 };
               const subResult = await executeSteps(step.steps || [], subVars, MAX_RETRIES, false);
-              if (!subResult.ok) throw new Error(subResult.error || "Loop execution failed");
+              if (!subResult.ok) {
+                const errMsg = `Item ${iterations + 1} failed: ` + (subResult.error || "Loop execution failed");
+                chrome.runtime.sendMessage({ type: "addLog", entry: { workflowId: window.__wfId, workflowName: window.__wfName, durationMs: 0, status: "error", errorMessage: errMsg } }).catch(() => {});
+                throw new Error(errMsg);
+              }
+              console.log(`[TaskOrbit] 'forEach' loop item ${iterations + 1}/${count} completed.`);
+              chrome.runtime.sendMessage({ type: "addLog", entry: { workflowId: window.__wfId, workflowName: window.__wfName, durationMs: 0, status: "success", errorMessage: `Loop 'forEach' item ${iterations + 1}/${count} completed.` } }).catch(() => {});
               iterations++;
             }
           }
@@ -921,6 +956,8 @@
 
   chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     if (msg && msg.type === "executeSteps") {
+      window.__wfId = msg.workflowId || "unknown";
+      window.__wfName = msg.workflowName || "Unknown Workflow";
       executeSteps(msg.steps || [], msg.variables || {}, msg.maxRetries, true).then(sendResponse);
       return true; // async
     }
