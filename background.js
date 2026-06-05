@@ -3,8 +3,11 @@ import {
   getWorkflow,
   urlMatchesSite,
   siteToOrigin,
-  addLog
+  addLog,
+  STEP_TYPES
 } from "./shared/storage.js";
+import { getCapabilities } from "./shared/capabilities.js";
+import { verifyStoredLicenseSilent } from "./shared/license.js";
 
 // ---- Message router -------------------------------------------------------
 
@@ -57,6 +60,35 @@ async function runWorkflow(workflowId, tabId, variables = null) {
   const startTime = Date.now();
 
   const execute = async () => {
+    const capabilities = await getCapabilities();
+
+    // Limit check
+    if (workflow.steps.length > capabilities.maxSteps) {
+      return { ok: false, error: `TaskOrbit Lite limits workflows to ${capabilities.maxSteps} steps. Upgrade to Pro.` };
+    }
+
+    // Step type checks (recursively check for pro features)
+    let usesLockedFeature = false;
+    let lockedFeatureName = "";
+    
+    const checkSteps = (steps) => {
+      for (const step of steps) {
+        const def = STEP_TYPES[step.type];
+        if (def && def.proFeature) {
+          if (def.proFeature === "loops" && !capabilities.allowLoops) { usesLockedFeature = true; lockedFeatureName = "Loops"; }
+          if (def.proFeature === "conditions" && !capabilities.allowConditions) { usesLockedFeature = true; lockedFeatureName = "Conditions"; }
+          if (def.proFeature === "variables" && !capabilities.allowVariables) { usesLockedFeature = true; lockedFeatureName = "Variables"; }
+          if (def.proFeature === "advanced" && !capabilities.allowDataProcessing) { usesLockedFeature = true; lockedFeatureName = "Advanced Tasks"; }
+        }
+        if (step.steps) checkSteps(step.steps);
+      }
+    };
+    checkSteps(workflow.steps);
+
+    if (usesLockedFeature) {
+      return { ok: false, error: `Workflow contains locked features (${lockedFeatureName}). Upgrade to Pro to run.` };
+    }
+
     // If no variables provided (e.g. auto-run or shortcut), fallback to defaults
     if (!variables && workflow.variables) {
       variables = {};
@@ -224,13 +256,16 @@ chrome.tabs.onUpdated.addListener(async (tabId, changeInfo, tab) => {
   if (!hasAccess) return;
 
   const workflows = await getWorkflows();
+  const capabilities = await getCapabilities();
 
   // Auto-run matching workflows.
-  const autoRuns = workflows.filter(
-    (w) => w.autoRun && (w.sites || []).some((s) => urlMatchesSite(tab.url, s))
-  );
-  for (const wf of autoRuns) {
-    runWorkflow(wf.id, tabId).catch(() => {});
+  if (capabilities.allowAutoRun) {
+    const autoRuns = workflows.filter(
+      (w) => w.autoRun && (w.sites || []).some((s) => urlMatchesSite(tab.url, s))
+    );
+    for (const wf of autoRuns) {
+      runWorkflow(wf.id, tabId).catch(() => {});
+    }
   }
 
   // Inject shortcut listener if any workflow has a shortcut for this site.
@@ -283,7 +318,14 @@ async function downloadFile(url, filename) {
 
 async function syncAlarms() {
   const workflows = await getWorkflows();
+  const capabilities = await getCapabilities();
   await chrome.alarms.clearAll();
+  
+  // Always ensure the periodic license check is scheduled
+  chrome.alarms.create("licenseCheck", { periodInMinutes: 1440 }); // 24 hours
+
+  if (!capabilities.allowAutoRun) return; // Scheduled background execution counts as AutoRun
+
   for (const wf of workflows) {
     if (wf.scheduleInterval > 0) {
       chrome.alarms.create(wf.id, { periodInMinutes: wf.scheduleInterval });
@@ -316,6 +358,14 @@ chrome.contextMenus.onClicked.addListener((info, tab) => {
 });
 
 chrome.alarms.onAlarm.addListener(async (alarm) => {
+  if (alarm.name === "licenseCheck") {
+    await verifyStoredLicenseSilent();
+    return;
+  }
+
+  const capabilities = await getCapabilities();
+  if (!capabilities.allowAutoRun) return;
+
   const workflowId = alarm.name;
   const workflow = await getWorkflow(workflowId);
   if (!workflow || !workflow.scheduleUrl) {
