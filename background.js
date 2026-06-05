@@ -62,8 +62,17 @@ async function runWorkflow(workflowId, tabId, variables = null) {
   const execute = async () => {
     const capabilities = await getCapabilities();
 
+    const countSteps = (steps = []) => {
+      let count = 0;
+      for (const step of steps) {
+        count++;
+        if (step.steps) count += countSteps(step.steps);
+      }
+      return count;
+    };
+
     // Limit check
-    if (workflow.steps.length > capabilities.maxSteps) {
+    if (countSteps(workflow.steps) > capabilities.maxSteps) {
       return { ok: false, error: `TaskOrbit Lite limits workflows to ${capabilities.maxSteps} steps. Upgrade to Pro.` };
     }
 

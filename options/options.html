@@ -190,12 +190,12 @@
     </footer>
 
     <!-- Upgrade Modal -->
-    <div id="upgradeModal" class="hidden" style="position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 2000; display: flex; align-items: center; justify-content: center; backdrop-filter: blur(2px);">
+    <div id="upgradeModal" class="hidden" style="position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 2000; display: none; align-items: center; justify-content: center; backdrop-filter: blur(2px);">
       <div style="background: white; border-radius: 12px; padding: 30px; max-width: 420px; width: 100%; box-shadow: 0 10px 40px rgba(0,0,0,0.2);">
-        <h2 style="margin: 0 0 15px 0; color: var(--text); font-size: 1.4rem;">🚀 Unlock TaskOrbit Pro</h2>
-        <p style="margin: 0 0 20px 0; color: var(--text-muted); line-height: 1.5;">Loops, variables, conditions, and auto-run are advanced capabilities reserved for Pro users.</p>
+        <h2 style="margin: 0 0 15px 0; color: var(--fg); font-size: 1.4rem;">🚀 Unlock TaskOrbit Pro</h2>
+        <p style="margin: 0 0 20px 0; color: var(--muted); line-height: 1.5;">Loops, variables, conditions, and auto-run are advanced capabilities reserved for Pro users.</p>
         
-        <ul style="list-style: none; padding: 0; margin: 0 0 25px 0; color: var(--text);">
+        <ul style="list-style: none; padding: 0; margin: 0 0 25px 0; color: var(--fg);">
           <li style="margin-bottom: 8px;">✅ Unlimited Workflows & Steps</li>
           <li style="margin-bottom: 8px;">✅ Advanced Logic & Variables</li>
           <li style="margin-bottom: 8px;">✅ Auto-run Automation</li>
@@ -203,8 +203,18 @@
         </ul>
 
         <div style="display: flex; flex-direction: column; gap: 10px;">
-          <a href="https://taskorbit.com/pro" target="_blank" class="btn btn-primary" style="text-align: center; text-decoration: none; padding: 10px;">Upgrade to Pro</a>
-          <button type="button" id="closeUpgradeModalBtn" class="btn" style="background: var(--bg-alt); color: var(--text);">Cancel</button>
+          <a href="https://taskorbit.com/upgrade" id="upgradeUrlBtn" target="_blank" class="btn btn-primary" style="text-align: center; text-decoration: none; padding: 10px;">Upgrade to Pro</a>
+          
+          <button type="button" id="closeUpgradeModalBtn" class="btn" style="text-align: center; font-size: 13px; font-weight: 500; padding: 10px;">Continue with TaskOrbit Lite (Free)</button>
+          
+          <div style="margin-top: 15px; border-top: 1px solid var(--border); padding-top: 15px;">
+            <label style="font-size: 12px; font-weight: 500; color: var(--muted); margin-bottom: 6px; display: block;">Already purchased?</label>
+            <div style="display: flex; gap: 8px;">
+              <input id="modalLicenseKeyInput" type="text" placeholder="Enter Pro License Key" style="flex: 1; padding: 8px; border: 1px solid var(--border); border-radius: 4px;" />
+              <button type="button" id="modalActivateLicenseBtn" class="btn btn-primary btn-sm">Activate</button>
+            </div>
+            <div id="modalLicenseMessage" style="margin-top: 8px; font-size: 12px;"></div>
+          </div>
         </div>
       </div>
     </div>

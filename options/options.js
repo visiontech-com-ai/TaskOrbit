@@ -174,20 +174,35 @@ function bindEvents() {
     closeUpgradeModalBtn.addEventListener("click", hideUpgradeModal);
   }
 
+  const modalActivateBtn = document.getElementById("modalActivateLicenseBtn");
+  if (modalActivateBtn) {
+    modalActivateBtn.addEventListener("click", () => onActivateLicense("modal"));
+  }
+
   const activateLicenseBtn = document.getElementById("activateLicenseBtn");
   if (activateLicenseBtn) {
-    activateLicenseBtn.addEventListener("click", onActivateLicense);
+    activateLicenseBtn.addEventListener("click", () => onActivateLicense("settings"));
   }
 
   const removeLicenseBtn = document.getElementById("removeLicenseBtn");
   if (removeLicenseBtn) {
     removeLicenseBtn.addEventListener("click", onRemoveLicense);
   }
+
+  els.newStepType.addEventListener("change", () => {
+    const selectedOption = els.newStepType.options[els.newStepType.selectedIndex];
+    if (selectedOption && selectedOption.dataset.locked === "true") {
+      revertNewStepTypeSelect();
+      showUpgradeModal();
+    }
+  });
 }
 
-async function onActivateLicense() {
-  const input = document.getElementById("licenseKeyInput");
-  const msg = document.getElementById("licenseMessage");
+async function onActivateLicense(source = "settings") {
+  const isModal = source === "modal";
+  const input = document.getElementById(isModal ? "modalLicenseKeyInput" : "licenseKeyInput");
+  const msg = document.getElementById(isModal ? "modalLicenseMessage" : "licenseMessage");
+  
   if (!input || !msg) return;
   
   const key = input.value;
@@ -204,8 +219,30 @@ async function onActivateLicense() {
   if (result.success) {
     msg.textContent = "License activated successfully!";
     msg.style.color = "var(--success)";
-    // Hard refresh to reload capabilities and UI state
-    setTimeout(() => location.reload(), 1000);
+    setTimeout(async () => {
+      if (isModal) hideUpgradeModal();
+      
+      // Update capabilities dynamically
+      capabilities = await getCapabilities();
+      
+      // Re-populate and re-render UI elements
+      populateStepTypeSelect();
+      renderSettings();
+      if (current) {
+        renderEditor();
+      }
+      renderList();
+      
+      // Reset inputs & messages
+      const mInput = document.getElementById("modalLicenseKeyInput");
+      const mMsg = document.getElementById("modalLicenseMessage");
+      const sInput = document.getElementById("licenseKeyInput");
+      const sMsg = document.getElementById("licenseMessage");
+      if (mInput) mInput.value = "";
+      if (mMsg) mMsg.textContent = "";
+      if (sInput) sInput.value = "";
+      if (sMsg) sMsg.textContent = "";
+    }, 600);
   } else {
     msg.textContent = result.error || "Invalid license.";
     msg.style.color = "var(--error)";
@@ -215,18 +252,30 @@ async function onActivateLicense() {
 async function onRemoveLicense() {
   if (confirm("Are you sure you want to remove your Pro license?")) {
     await removeLicense();
-    location.reload();
+    capabilities = await getCapabilities();
+    populateStepTypeSelect();
+    renderSettings();
+    if (current) {
+      renderEditor();
+    }
+    renderList();
   }
 }
 
 function showUpgradeModal() {
   const modal = document.getElementById("upgradeModal");
-  if (modal) modal.classList.remove("hidden");
+  if (modal) {
+    modal.style.display = "flex";
+    modal.classList.remove("hidden");
+  }
 }
 
 function hideUpgradeModal() {
   const modal = document.getElementById("upgradeModal");
-  if (modal) modal.classList.add("hidden");
+  if (modal) {
+    modal.style.display = "none";
+    modal.classList.add("hidden");
+  }
 }
 
 // ---- Sidebar list ---------------------------------------------------------
@@ -302,7 +351,7 @@ function renderList() {
       nameDiv.textContent = wf.name || "(untitled)";
       const sub = document.createElement("div");
       sub.className = "wf-sub";
-      const parts = [`${wf.steps.length} step(s)`];
+      const parts = [`${countTotalSteps(wf.steps)} step(s)`];
       if (wf.autoRun) parts.push("auto");
       if (wf.shortcut) parts.push(wf.shortcut);
       sub.textContent = parts.join(" \u00B7 ");
@@ -359,6 +408,14 @@ function renderEditor() {
       e.preventDefault();
       els.wfAutoRun.checked = false;
       showUpgradeModal();
+    });
+  } else {
+    els.wfAutoRun.parentElement.innerHTML = `<input id="wfAutoRun" type="checkbox" /> Auto-run`;
+    // Re-bind els.wfAutoRun because we replaced HTML
+    els.wfAutoRun = document.getElementById("wfAutoRun");
+    els.wfAutoRun.checked = !!current.autoRun;
+    els.wfAutoRun.addEventListener("change", () => {
+      if (current) current.autoRun = els.wfAutoRun.checked;
     });
   }
 
@@ -874,6 +931,10 @@ function renderStep(step, i, parentArray) {
     addChildBtn.style.alignSelf = "flex-start";
     addChildBtn.style.marginTop = "6px";
     addChildBtn.addEventListener("click", () => {
+      if (countTotalSteps(current.steps) >= capabilities.maxSteps) {
+        showUpgradeModal();
+        return;
+      }
       step.steps.push(newStep("click"));
       renderSteps();
     });
@@ -957,9 +1018,29 @@ function iconBtn(symbol, title, onClick) {
   return b;
 }
 
+function countTotalSteps(steps = []) {
+  let count = 0;
+  for (const step of steps) {
+    count++;
+    if (step.steps && step.steps.length > 0) {
+      count += countTotalSteps(step.steps);
+    }
+  }
+  return count;
+}
+
+function revertNewStepTypeSelect() {
+  for (const opt of els.newStepType.options) {
+    if (opt.dataset.locked !== "true") {
+      els.newStepType.value = opt.value;
+      break;
+    }
+  }
+}
+
 function onAddStep() {
   if (!current.steps) current.steps = [];
-  if (current.steps.length >= capabilities.maxSteps) {
+  if (countTotalSteps(current.steps) >= capabilities.maxSteps) {
     showUpgradeModal();
     return;
   }
@@ -974,6 +1055,7 @@ function onAddStep() {
     if (def.proFeature === "advanced" && !capabilities.allowDataProcessing) locked = true;
     
     if (locked) {
+      revertNewStepTypeSelect();
       showUpgradeModal();
       return;
     }
@@ -1336,6 +1418,7 @@ function onViewSettings() {
   current = null;
   renderList();
   document.querySelector(".editor").classList.add("hidden");
+  els.emptyEditor.classList.add("hidden");
   els.logsView.classList.add("hidden");
   els.settingsView.classList.remove("hidden");
 }
