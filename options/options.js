@@ -201,11 +201,20 @@ function bindEvents() {
 async function onActivateLicense(source = "settings") {
   const isModal = source === "modal";
   const input = document.getElementById(isModal ? "modalLicenseKeyInput" : "licenseKeyInput");
+  const emailInput = document.getElementById(isModal ? "modalLicenseEmailInput" : "licenseEmailInput");
   const msg = document.getElementById(isModal ? "modalLicenseMessage" : "licenseMessage");
   
   if (!input || !msg) return;
   
-  const key = input.value;
+  const key = input.value.trim();
+  const email = emailInput ? emailInput.value.trim() : "";
+  
+  if (!email) {
+    msg.textContent = "Please enter your email address.";
+    msg.style.color = "var(--error)";
+    return;
+  }
+  
   if (!key) {
     msg.textContent = "Please enter a key.";
     msg.style.color = "var(--error)";
@@ -215,7 +224,7 @@ async function onActivateLicense(source = "settings") {
   msg.textContent = "Validating...";
   msg.style.color = "var(--text-muted)";
   
-  const result = await activateLicense(key);
+  const result = await activateLicense(key, email);
   if (result.success) {
     msg.textContent = "License activated successfully!";
     msg.style.color = "var(--success)";
@@ -235,12 +244,17 @@ async function onActivateLicense(source = "settings") {
       
       // Reset inputs & messages
       const mInput = document.getElementById("modalLicenseKeyInput");
+      const mEmail = document.getElementById("modalLicenseEmailInput");
       const mMsg = document.getElementById("modalLicenseMessage");
       const sInput = document.getElementById("licenseKeyInput");
+      const sEmail = document.getElementById("licenseEmailInput");
       const sMsg = document.getElementById("licenseMessage");
+      
       if (mInput) mInput.value = "";
+      if (mEmail) mEmail.value = "";
       if (mMsg) mMsg.textContent = "";
       if (sInput) sInput.value = "";
+      if (sEmail) sEmail.value = "";
       if (sMsg) sMsg.textContent = "";
     }, 600);
   } else {
@@ -1468,6 +1482,7 @@ async function renderLicenseStatus() {
   const badge = document.getElementById("currentTierBadge");
   const text = document.getElementById("licenseStatusText");
   const input = document.getElementById("licenseKeyInput");
+  const emailInput = document.getElementById("licenseEmailInput");
   const activateBtn = document.getElementById("activateLicenseBtn");
   const removeBtn = document.getElementById("removeLicenseBtn");
   const msg = document.getElementById("licenseMessage");
@@ -1481,6 +1496,10 @@ async function renderLicenseStatus() {
     text.textContent = "TaskOrbit Pro is active. All advanced features unlocked!";
     input.value = license.key ? "•".repeat(license.key.length) : "••••••••••••";
     input.disabled = true;
+    if (emailInput) {
+      emailInput.value = license.email || "";
+      emailInput.disabled = true;
+    }
     activateBtn.disabled = true;
     removeBtn.classList.remove("hidden");
     if (msg) msg.textContent = "";
@@ -1491,6 +1510,10 @@ async function renderLicenseStatus() {
     text.textContent = "TaskOrbit Lite (Free) is active. Upgrade to unlock loops, conditions, and auto-run.";
     input.value = "";
     input.disabled = false;
+    if (emailInput) {
+      emailInput.value = "";
+      emailInput.disabled = false;
+    }
     activateBtn.disabled = false;
     removeBtn.classList.add("hidden");
     if (msg) msg.textContent = "";

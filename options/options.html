@@ -171,9 +171,12 @@
           <button type="button" id="removeLicenseBtn" class="btn btn-sm btn-danger hidden">Remove License</button>
         </div>
         
-        <div id="licenseEntryArea" style="display: flex; gap: 8px;">
-          <input id="licenseKeyInput" type="text" placeholder="Enter Pro License Key (e.g. PRO-KEY-123)" style="flex: 1;" />
-          <button type="button" id="activateLicenseBtn" class="btn btn-primary btn-sm">Activate</button>
+        <div id="licenseEntryArea" style="display: flex; flex-direction: column; gap: 8px;">
+          <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+            <input id="licenseEmailInput" type="email" placeholder="Enter your Email Address" style="flex: 1; min-width: 200px;" />
+            <input id="licenseKeyInput" type="text" placeholder="Enter Pro License Key (e.g. TO-XXXX-XXXX-XXXX)" style="flex: 1.5; min-width: 200px;" />
+          </div>
+          <button type="button" id="activateLicenseBtn" class="btn btn-primary btn-sm" style="align-self: flex-end;">Activate</button>
         </div>
         <div id="licenseMessage" style="margin-top: 8px; font-size: 12px;"></div>
       </fieldset>
@@ -209,9 +212,12 @@
           
           <div style="margin-top: 15px; border-top: 1px solid var(--border); padding-top: 15px;">
             <label style="font-size: 12px; font-weight: 500; color: var(--muted); margin-bottom: 6px; display: block;">Already purchased?</label>
-            <div style="display: flex; gap: 8px;">
-              <input id="modalLicenseKeyInput" type="text" placeholder="Enter Pro License Key" style="flex: 1; padding: 8px; border: 1px solid var(--border); border-radius: 4px;" />
-              <button type="button" id="modalActivateLicenseBtn" class="btn btn-primary btn-sm">Activate</button>
+            <div style="display: flex; flex-direction: column; gap: 8px;">
+              <input id="modalLicenseEmailInput" type="email" placeholder="Enter your Email Address" style="padding: 8px; border: 1px solid var(--border); border-radius: 4px;" />
+              <div style="display: flex; gap: 8px;">
+                <input id="modalLicenseKeyInput" type="text" placeholder="Enter Pro License Key" style="flex: 1; padding: 8px; border: 1px solid var(--border); border-radius: 4px;" />
+                <button type="button" id="modalActivateLicenseBtn" class="btn btn-primary btn-sm">Activate</button>
+              </div>
             </div>
             <div id="modalLicenseMessage" style="margin-top: 8px; font-size: 12px;"></div>
           </div>

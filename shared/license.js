@@ -9,12 +9,15 @@ export async function getActiveLicense() {
   return {
     isValid: true,
     tier: settings.licenseData.tier || "PRO",
-    key: settings.licenseData.key || null
+    key: settings.licenseData.key || null,
+    email: settings.licenseData.email || null
   };
 }
-export async function activateLicense(key) {
+export async function activateLicense(key, email) {
   const trimmed = key.trim();
+  const trimmedEmail = email ? email.trim() : "";
   if (!trimmed) return { success: false, error: "License key is required." };
+  if (!trimmedEmail) return { success: false, error: "Email address is required." };
 
   try {
     // Attempt real backend call
@@ -32,10 +35,10 @@ export async function activateLicense(key) {
         expiresAt: Date.now() + 30 * 24 * 60 * 60 * 1000 // 30 days
       };
     } else {
-      const res = await fetch("https://api.taskorbit.com/v1/license/verify", {
+      const res = await fetch("https://taskorbit.subho.net/v1/license/verify", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ licenseKey: trimmed })
+        body: JSON.stringify({ licenseKey: trimmed, email: trimmedEmail })
       });
       responseData = await res.json();
     }
@@ -48,6 +51,7 @@ export async function activateLicense(key) {
         isValid: true,
         tier: responseData.tier || "PRO",
         key: trimmed,
+        email: trimmedEmail,
         token: responseData.token,
         lastChecked: Date.now(),
         offlineGraceEnds: Date.now() + 7 * 24 * 60 * 60 * 1000 // 7 days grace period
@@ -79,10 +83,10 @@ export async function verifyStoredLicenseSilent() {
     if (key === "PRO-KEY-123") {
       responseData = { success: true, tier: "PRO", status: "active" };
     } else {
-      const res = await fetch("https://api.taskorbit.com/v1/license/verify", {
+      const res = await fetch("https://taskorbit.subho.net/v1/license/verify", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ licenseKey: key })
+        body: JSON.stringify({ licenseKey: key, email: settings.licenseData.email || "" })
       });
       responseData = await res.json();
     }
