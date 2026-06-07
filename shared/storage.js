@@ -26,8 +26,21 @@ export const STEP_TYPES = {
   screenshot: { label: "Take Screenshot", needs: ["value"] },
   if_exists: { label: "If Element Exists", needs: ["selector"], proFeature: "conditions" },
   if_not_exists: { label: "If Element Does Not Exist", needs: ["selector"], proFeature: "conditions" },
+  if_variable: { label: "If Variable", needs: ["selector", "selectorType", "value"], proFeature: "conditions" },
+  else: { label: "Else", needs: [], proFeature: "conditions" },
   end_if: { label: "End If", needs: [], proFeature: "conditions" },
   loop: { label: "Loop Container", needs: [], proFeature: "loops" }
+};
+
+export const COMPARISON_OPERATORS = {
+  "==": { label: "Equals (==)" },
+  "!=": { label: "Not Equals (!=)" },
+  ">": { label: "Greater Than (>)" },
+  "<": { label: "Less Than (<)" },
+  ">=": { label: "Greater or Equal (>=)" },
+  "<=": { label: "Less or Equal (<=)" },
+  "includes": { label: "Contains text" },
+  "not_includes": { label: "Does not contain text" }
 };
 
 // How the `selector` string should be interpreted to find the target element.

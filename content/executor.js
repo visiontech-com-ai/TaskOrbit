@@ -763,10 +763,12 @@
       }
       
       if (skipDepth > 0) {
-        if (step.type === "if_exists" || step.type === "if_not_exists") {
+        if (step.type.startsWith("if_")) {
           skipDepth++;
         } else if (step.type === "end_if") {
           skipDepth--;
+        } else if (step.type === "else" && skipDepth === 1) {
+          skipDepth = 0; // true branch was skipped, so execute false branch
         }
         if (topLevel) updateProgressStep(i, "skipped");
         results.push({ index: i, type: step.type, ok: true, skipped: true });
@@ -787,6 +789,38 @@
           if (el) skipDepth = 1;
           if (topLevel) updateProgressStep(i, !el ? "ok" : "skipped");
           results.push({ index: i, type: step.type, ok: true });
+          continue;
+        }
+
+        if (step.type === "if_variable") {
+          const left = step.selector;
+          const op = step.selectorType || "==";
+          const right = step.value;
+          
+          let numLeft = Number(left);
+          let numRight = Number(right);
+          const isNumeric = !isNaN(numLeft) && !isNaN(numRight) && String(left).trim() !== "" && String(right).trim() !== "";
+          
+          let truthy = false;
+          if (op === "==") truthy = left == right;
+          else if (op === "!=") truthy = left != right;
+          else if (op === ">") truthy = isNumeric ? numLeft > numRight : left > right;
+          else if (op === "<") truthy = isNumeric ? numLeft < numRight : left < right;
+          else if (op === ">=") truthy = isNumeric ? numLeft >= numRight : left >= right;
+          else if (op === "<=") truthy = isNumeric ? numLeft <= numRight : left <= right;
+          else if (op === "includes") truthy = String(left).includes(String(right));
+          else if (op === "not_includes") truthy = !String(left).includes(String(right));
+          
+          if (!truthy) skipDepth = 1;
+          if (topLevel) updateProgressStep(i, truthy ? "ok" : "skipped");
+          results.push({ index: i, type: step.type, ok: true });
+          continue;
+        }
+
+        if (step.type === "else") {
+          skipDepth = 1; // Executed true branch, now skip false branch
+          if (topLevel) updateProgressStep(i, "skipped");
+          results.push({ index: i, type: step.type, ok: true, skipped: true });
           continue;
         }
 

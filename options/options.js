@@ -13,7 +13,8 @@ import {
   getLogs,
   clearLogs,
   getSettings,
-  saveSettings
+  saveSettings,
+  COMPARISON_OPERATORS
 } from "../shared/storage.js";
 import { getCapabilities } from "../shared/capabilities.js";
 import { getActiveLicense, activateLicense, removeLicense } from "../shared/license.js";
@@ -737,7 +738,7 @@ function renderStep(step, i, parentArray) {
   fields.className = "step-fields";
   const needs = STEP_TYPES[step.type] ? STEP_TYPES[step.type].needs : ["selector", "value"];
 
-  if (needs.includes("selector") && step.type !== "calculateMath") {
+  if (needs.includes("selector") && step.type !== "calculateMath" && step.type !== "if_variable") {
     fields.appendChild(selectorTypeField(step));
     fields.appendChild(selectorField(step));
   }
@@ -841,6 +842,24 @@ function renderStep(step, i, parentArray) {
     } else if (step.type === "calculateMath") {
       fields.appendChild(textareaField("Math Expression", step.value || "", (v) => (step.value = v), "{{price}} * {{quantity}}"));
       fields.appendChild(field("Result Variable Name", step.selector || "", (v) => (step.selector = v), "e.g. total"));
+    } else if (step.type === "if_variable") {
+      fields.appendChild(field("Variable", step.selector || "", (v) => (step.selector = v), "{{price}}"));
+      
+      const opWrap = document.createElement("div");
+      opWrap.className = "step-field";
+      opWrap.innerHTML = `<label>Operator</label><select></select>`;
+      const opSel = opWrap.querySelector("select");
+      for (const [op, def] of Object.entries(COMPARISON_OPERATORS)) {
+        const opt = document.createElement("option");
+        opt.value = op;
+        opt.textContent = def.label;
+        if ((step.selectorType || "==") === op) opt.selected = true;
+        opSel.appendChild(opt);
+      }
+      opSel.addEventListener("change", () => (step.selectorType = opSel.value));
+      fields.appendChild(opWrap);
+
+      fields.appendChild(field("Value", step.value || "", (v) => (step.value = v), "100"));
     } else {
       const placeholder = step.type === "navigate" ? "https://..." : step.type === "check" ? "true / false" : step.type === "selectOption" ? "option value or text" : step.type === "waitNetworkIdle" ? "Idle duration (ms)" : step.type === "extractText" ? "Variable name to save to" : step.type === "exportData" ? "Format: 'csv' or 'json'" : "text to type";
       fields.appendChild(field("Value", step.value || "", (v) => (step.value = v), placeholder));
