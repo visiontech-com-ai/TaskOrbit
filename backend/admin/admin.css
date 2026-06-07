@@ -337,9 +337,9 @@ input:focus, select:focus {
 /* DASHBOARD LAYOUT */
 .dashboard-layout {
   display: grid;
-  grid-template-columns: 360px 1fr;
+  grid-template-columns: 1fr;
   gap: 24px;
-  align-items: start;
+  align-items: stretch;
 }
 .panel {
   padding: 28px;
@@ -518,6 +518,17 @@ input:focus, select:focus {
   background: var(--danger);
   color: #fff;
   border-color: var(--danger);
+}
+
+.table-action-btn.reset {
+  background: rgba(245, 158, 11, 0.08);
+  color: #fbbf24;
+  border: 1px solid rgba(245, 158, 11, 0.2);
+}
+.table-action-btn.reset:hover {
+  background: var(--warning);
+  color: #fff;
+  border-color: var(--warning);
 }
 .table-action-btn:disabled {
   opacity: 0.3;

@@ -50,6 +50,7 @@ async function initDb() {
       status TEXT DEFAULT 'active', -- active, revoked
       email TEXT,
       name TEXT,
+      device_id TEXT,
       created_at INTEGER,
       expires_at INTEGER
     )
@@ -63,6 +64,11 @@ async function initDb() {
   }
   try {
     await run(`ALTER TABLE licenses ADD COLUMN name TEXT`);
+  } catch (err) {
+    // Column already exists
+  }
+  try {
+    await run(`ALTER TABLE licenses ADD COLUMN device_id TEXT`);
   } catch (err) {
     // Column already exists
   }

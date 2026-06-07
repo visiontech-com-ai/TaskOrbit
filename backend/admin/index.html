@@ -83,24 +83,24 @@
               <p>Issue new license coupons</p>
             </div>
             <form id="generator-form">
-              <div class="form-group">
-                <label for="user-name">Client Name (Optional)</label>
-                <input type="text" id="user-name" placeholder="John Doe">
-              </div>
-              <div class="form-group">
-                <label for="user-email">Client Email (Optional)</label>
-                <input type="email" id="user-email" placeholder="john@example.com">
-              </div>
-              <div class="form-row">
-                <div class="form-group half">
+              <div class="form-row" style="align-items: flex-end;">
+                <div class="form-group" style="flex: 2;">
+                  <label for="user-name">Client Name (Optional)</label>
+                  <input type="text" id="user-name" placeholder="John Doe">
+                </div>
+                <div class="form-group" style="flex: 3;">
+                  <label for="user-email">Client Email (Optional)</label>
+                  <input type="email" id="user-email" placeholder="john@example.com">
+                </div>
+                <div class="form-group" style="flex: 1.5;">
                   <label for="license-tier">License Tier</label>
                   <select id="license-tier">
                     <option value="PRO" selected>PRO</option>
                     <option value="ENTERPRISE">ENTERPRISE</option>
                   </select>
                 </div>
-                <div class="form-group half">
-                  <label for="license-duration">Validity Duration</label>
+                <div class="form-group" style="flex: 1.5;">
+                  <label for="license-duration">Duration</label>
                   <select id="license-duration">
                     <option value="30" selected>30 Days</option>
                     <option value="90">90 Days</option>
@@ -108,17 +108,17 @@
                     <option value="0">Lifetime</option>
                   </select>
                 </div>
-              </div>
-              <div class="form-row">
-                <div class="form-group full">
-                  <label for="key-count">Quantity</label>
+                <div class="form-group" style="flex: 1;">
+                  <label for="key-count">Qty</label>
                   <input type="number" id="key-count" min="1" max="100" value="1" required>
                 </div>
+                <div class="form-group" style="margin-bottom: 20px;">
+                  <button type="submit" id="generate-btn" class="primary-btn" style="height: 46px;">
+                    <span>Generate Keys</span>
+                    <span class="spinner hidden"></span>
+                  </button>
+                </div>
               </div>
-              <button type="submit" id="generate-btn" class="primary-btn">
-                <span>Generate Keys</span>
-                <span class="spinner hidden"></span>
-              </button>
             </form>
           </div>
         </div>
@@ -162,6 +162,7 @@
                   <tr>
                     <th>Key</th>
                     <th>User Details</th>
+                    <th>Device ID</th>
                     <th>Tier</th>
                     <th>Status</th>
                     <th>Validity Period</th>

@@ -13,6 +13,16 @@ export async function getActiveLicense() {
     email: settings.licenseData.email || null
   };
 }
+
+export async function getDeviceId() {
+  const data = await chrome.storage.local.get("settings");
+  let settings = data.settings || {};
+  if (!settings.deviceId) {
+    settings.deviceId = crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36).substring(2) + Date.now().toString(36);
+    await chrome.storage.local.set({ settings });
+  }
+  return settings.deviceId;
+}
 export async function activateLicense(key, email) {
   const trimmed = key.trim();
   const trimmedEmail = email ? email.trim() : "";
@@ -35,10 +45,11 @@ export async function activateLicense(key, email) {
         expiresAt: Date.now() + 30 * 24 * 60 * 60 * 1000 // 30 days
       };
     } else {
+      const deviceId = await getDeviceId();
       const res = await fetch("https://taskorbit.subho.net/v1/license/verify", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ licenseKey: trimmed, email: trimmedEmail })
+        body: JSON.stringify({ licenseKey: trimmed, email: trimmedEmail, deviceId })
       });
       responseData = await res.json();
     }
@@ -83,10 +94,11 @@ export async function verifyStoredLicenseSilent() {
     if (key === "PRO-KEY-123") {
       responseData = { success: true, tier: "PRO", status: "active" };
     } else {
+      const deviceId = await getDeviceId();
       const res = await fetch("https://taskorbit.subho.net/v1/license/verify", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ licenseKey: key, email: settings.licenseData.email || "" })
+        body: JSON.stringify({ licenseKey: key, email: settings.licenseData.email || "", deviceId })
       });
       responseData = await res.json();
     }

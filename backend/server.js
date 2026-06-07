@@ -57,10 +57,13 @@ app.get('/health', (req, res) => {
 
 // 1. PUBLIC: Validate License & issue signed JWT
 app.post('/v1/license/verify', verifyLimiter, async (req, res) => {
-  const { licenseKey, email } = req.body;
+  const { licenseKey, email, deviceId } = req.body;
 
   if (!licenseKey) {
     return res.status(400).json({ success: false, error: 'licenseKey is required.' });
+  }
+  if (!deviceId) {
+    return res.status(400).json({ success: false, error: 'Device ID is required. Please update your extension to the latest version.' });
   }
 
   const key = licenseKey.trim();
@@ -93,12 +96,31 @@ app.post('/v1/license/verify', verifyLimiter, async (req, res) => {
       return res.status(403).json({ success: false, error: `License key status is "${license.status}".` });
     }
 
-    // Verify email matching (case-insensitive and trimmed)
-    if (license.email !== null) {
+    // Verify or bind email
+    if (license.email === null) {
+      if (!email || !email.trim()) {
+        return res.status(400).json({ success: false, error: 'An email address is required to redeem this license key.' });
+      }
+      const newEmail = email.trim().toLowerCase();
+      // Bind the email to the license (redeem it)
+      await db.run('UPDATE licenses SET email = ? WHERE key = ?', [newEmail, key]);
+      license.email = newEmail;
+    } else {
+      // Verify email matches the bound email
       const clientEmail = email ? email.trim().toLowerCase() : '';
       const dbEmail = license.email.trim().toLowerCase();
       if (clientEmail !== dbEmail) {
-        return res.status(403).json({ success: false, error: 'License key is registered to a different email address.' });
+        return res.status(403).json({ success: false, error: 'This license key has already been redeemed by a different email address.' });
+      }
+    }
+
+    // Verify or bind device
+    if (license.device_id === null) {
+      await db.run('UPDATE licenses SET device_id = ? WHERE key = ?', [deviceId, key]);
+      license.device_id = deviceId;
+    } else {
+      if (license.device_id !== deviceId) {
+        return res.status(403).json({ success: false, error: 'This license key is already active on another device.' });
       }
     }
 
@@ -208,6 +230,31 @@ app.post('/v1/admin/license/revoke', requireAdmin, async (req, res) => {
   } catch (error) {
     console.error('Revoke error:', error);
     res.status(500).json({ success: false, error: 'Failed to revoke license key.' });
+  }
+});
+
+// 5. ADMIN: Reset Device Lock
+app.post('/v1/admin/license/reset-device', requireAdmin, async (req, res) => {
+  const { licenseKey } = req.body;
+
+  if (!licenseKey) {
+    return res.status(400).json({ success: false, error: 'licenseKey is required.' });
+  }
+
+  try {
+    const key = licenseKey.trim();
+    const license = await db.get('SELECT * FROM licenses WHERE key = ?', [key]);
+
+    if (!license) {
+      return res.status(404).json({ success: false, error: 'License key not found.' });
+    }
+
+    await db.run('UPDATE licenses SET device_id = NULL WHERE key = ?', [key]);
+    res.json({ success: true, message: `Device lock for "${key}" successfully reset. The next activation will bind it to the new device.` });
+
+  } catch (error) {
+    console.error('Reset device error:', error);
+    res.status(500).json({ success: false, error: 'Failed to reset device lock.' });
   }
 });
 

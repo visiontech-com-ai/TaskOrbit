@@ -239,6 +239,42 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   }
 
+  // Reset Device Lock
+  async function resetDevice(key) {
+    const secret = sessionStorage.getItem('admin_secret');
+    if (!secret) return;
+
+    if (!confirm(`Are you sure you want to reset the device lock for key: ${key}? The user will be able to activate it on a new computer.`)) {
+      return;
+    }
+
+    try {
+      const res = await fetch('/v1/admin/license/reset-device', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-admin-secret': secret
+        },
+        body: JSON.stringify({ licenseKey: key })
+      });
+
+      if (res.status === 401 || res.status === 403) {
+        handleUnauthorized();
+        return;
+      }
+
+      const data = await res.json();
+      if (data.success) {
+        showToast(`Device lock reset successfully.`, 'success');
+        loadRegistry();
+      } else {
+        showToast(data.error || 'Failed to reset device lock.', 'danger');
+      }
+    } catch {
+      showToast('Network error resetting device lock.', 'danger');
+    }
+  }
+
   // --- UI RENDERING ---
 
   // Render licenses list with filter/search options
@@ -304,6 +340,11 @@ document.addEventListener('DOMContentLoaded', () => {
         tdUser.innerHTML = `<span class="user-anonymous">Anonymous</span>`;
       }
 
+      // Device cell
+      const tdDevice = document.createElement('td');
+      tdDevice.innerHTML = lic.device_id ? `<span class="user-email" style="font-family: monospace; font-size: 0.75rem;">${lic.device_id.split('-')[0]}...</span>` : `<span class="user-anonymous">None</span>`;
+      tdDevice.title = lic.device_id || 'No device bound';
+
       // Tier cell
       const tdTier = document.createElement('td');
       const tierClass = lic.tier.toLowerCase() === 'enterprise' ? 'enterprise' : 'pro';
@@ -334,6 +375,16 @@ document.addEventListener('DOMContentLoaded', () => {
 
       // Actions cell
       const tdActions = document.createElement('td');
+      tdActions.style.display = 'flex';
+      tdActions.style.gap = '8px';
+
+      const btnReset = document.createElement('button');
+      btnReset.className = 'table-action-btn reset';
+      btnReset.textContent = 'Reset Device';
+      btnReset.disabled = (lic.status !== 'active' || isExpired);
+      btnReset.addEventListener('click', () => resetDevice(lic.key));
+      tdActions.appendChild(btnReset);
+
       const btnRevoke = document.createElement('button');
       btnRevoke.className = 'table-action-btn revoke';
       btnRevoke.textContent = 'Revoke';
@@ -343,6 +394,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
       tr.appendChild(tdKey);
       tr.appendChild(tdUser);
+      tr.appendChild(tdDevice);
       tr.appendChild(tdTier);
       tr.appendChild(tdStatus);
       tr.appendChild(tdValidity);
