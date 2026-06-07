@@ -593,6 +593,111 @@
         if (res && !res.ok) throw new Error("Screenshot failed: " + res.error);
         break;
 
+      case "append_row": {
+        const row = {};
+        const keysToSave = step.value ? step.value.split(',').map(k => k.trim()).filter(Boolean) : Object.keys(variables);
+        keysToSave.forEach(k => {
+          row[k] = variables[k] || "";
+        });
+
+        if (step.selector) {
+          const uniqueKey = step.selector.trim();
+          const memKey = `memory_bank_${window.__wfId}`;
+          const data = await chrome.storage.local.get(memKey);
+          const bank = data[memKey] || [];
+          if (bank.includes(uniqueKey)) {
+            console.log(`[TaskOrbit] append_row: Skipping duplicate key ${uniqueKey}`);
+            return;
+          }
+          bank.push(uniqueKey);
+          await chrome.storage.local.set({ [memKey]: bank });
+        }
+
+        window.__to_dataTable = window.__to_dataTable || [];
+        window.__to_dataTable.push(row);
+        return;
+      }
+
+      case "export_table": {
+        const filename = step.value || `table_export_${Date.now()}.csv`;
+        window.__to_dataTable = window.__to_dataTable || [];
+        if (window.__to_dataTable.length === 0) throw new Error("Data table is empty. Nothing to export.");
+        
+        const keys = new Set();
+        window.__to_dataTable.forEach(r => Object.keys(r).forEach(k => keys.add(k)));
+        const headers = Array.from(keys);
+        
+        let content = headers.map(h => `"${h.replace(/"/g, '""')}"`).join(",") + "\n";
+        for (const row of window.__to_dataTable) {
+          content += headers.map(h => `"${String(row[h] || "").replace(/"/g, '""')}"`).join(",") + "\n";
+        }
+        
+        const blob = new Blob([content], { type: "text/csv" });
+        const reader = new FileReader();
+        const dataUrl = await new Promise(resolve => {
+          reader.onloadend = () => resolve(reader.result);
+          reader.readAsDataURL(blob);
+        });
+        
+        const dlRes = await chrome.runtime.sendMessage({ 
+          type: "downloadFile", 
+          url: dataUrl,
+          filename: filename.endsWith('.csv') ? filename : filename + '.csv'
+        });
+        if (dlRes && !dlRes.ok) throw new Error("Export table failed: " + dlRes.error);
+        return;
+      }
+
+      case "load_csv": {
+        let text = step.value || "";
+        if (text.startsWith("http://") || text.startsWith("https://")) {
+          try {
+            const res = await fetch(text);
+            if (!res.ok) throw new Error(`HTTP ${res.status}`);
+            text = await res.text();
+          } catch (e) {
+            throw new Error("Failed to fetch CSV URL: " + e.message);
+          }
+        }
+        
+        const lines = text.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
+        if (lines.length === 0) throw new Error("CSV data is empty");
+        
+        const parseLine = (line) => line.split(/,(?=(?:(?:[^"]*"){2})*[^"]*$)/).map(v => v.replace(/^"|"$/g, '').trim());
+        const headers = parseLine(lines[0]);
+        const rows = [];
+        for (let i = 1; i < lines.length; i++) {
+          const vals = parseLine(lines[i]);
+          const obj = {};
+          headers.forEach((h, j) => obj[h] = vals[j] || "");
+          rows.push(obj);
+        }
+        window.__to_dataRows = rows;
+        return;
+      }
+
+      case "mark_row_processed": {
+        const rowIdx = variables.loop_index;
+        if (rowIdx === undefined || !window.__to_dataRows) throw new Error("Not inside a Data Row loop");
+        const rowData = window.__to_dataRows[rowIdx];
+        if (!rowData) return;
+        
+        const rowStr = JSON.stringify(rowData);
+        const msgUint8 = new TextEncoder().encode(rowStr);
+        const hashBuffer = await crypto.subtle.digest('SHA-256', msgUint8);
+        const hashArray = Array.from(new Uint8Array(hashBuffer));
+        const hashStr = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+
+        const memKey = `memory_bank_${window.__wfId}`;
+        const data = await chrome.storage.local.get(memKey);
+        const bank = data[memKey] || [];
+        if (!bank.includes(hashStr)) {
+          bank.push(hashStr);
+          await chrome.storage.local.set({ [memKey]: bank });
+        }
+        return;
+      }
+
       case "exportData": {
         const format = (step.value || "csv").toLowerCase().trim();
         let content = "";
@@ -731,6 +836,8 @@
   async function executeSteps(steps, variables, maxRetries = 3, topLevel = false) {
     if (topLevel) {
       window.__vf_emergency_stop = false;
+      window.__to_dataTable = [];
+      window.__to_dataRows = [];
     }
 
     MAX_RETRIES = maxRetries;
@@ -899,6 +1006,46 @@
               }
               console.log(`[TaskOrbit] 'forEach' loop item ${iterations + 1}/${count} completed.`);
               chrome.runtime.sendMessage({ type: "addLog", entry: { workflowId: window.__wfId, workflowName: window.__wfName, durationMs: 0, status: "success", errorMessage: `Loop 'forEach' item ${iterations + 1}/${count} completed.` } }).catch(() => {});
+              iterations++;
+            }
+          } else if (step.mode === "forEachRow") {
+            const rows = window.__to_dataRows || [];
+            const count = rows.length;
+            console.log(`[TaskOrbit] Starting 'forEachRow' loop. Found ${count} rows of data.`);
+            
+            const memKey = `memory_bank_${window.__wfId}`;
+            const memData = await chrome.storage.local.get(memKey);
+            const bank = memData[memKey] || [];
+            
+            while (iterations < count && iterations < maxIterations && !window.__vf_emergency_stop) {
+              const rowData = rows[iterations] || {};
+              const rowStr = JSON.stringify(rowData);
+              const msgUint8 = new TextEncoder().encode(rowStr);
+              const hashBuffer = await crypto.subtle.digest('SHA-256', msgUint8);
+              const hashArray = Array.from(new Uint8Array(hashBuffer));
+              const hashStr = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+              
+              if (bank.includes(hashStr)) {
+                console.log(`[TaskOrbit] 'forEachRow' skipping row ${iterations + 1} (already processed)`);
+                iterations++;
+                continue;
+              }
+
+              if (topLevel) {
+                updateProgressStep(i, "running", `[Row ${iterations + 1}/${count}]`);
+                updateSmartToastText(`Processing row ${iterations + 1} of ${count}...`);
+              }
+              console.log(`[TaskOrbit] 'forEachRow' loop row ${iterations + 1}/${count} starting.`);
+
+              const subVars = { ...variables, ...rowData, loop_index: iterations, loop_index_1: iterations + 1 };
+              const subResult = await executeSteps(step.steps || [], subVars, MAX_RETRIES, false);
+              if (!subResult.ok) {
+                const errMsg = `Row ${iterations + 1} failed: ` + (subResult.error || "Loop execution failed");
+                chrome.runtime.sendMessage({ type: "addLog", entry: { workflowId: window.__wfId, workflowName: window.__wfName, durationMs: 0, status: "error", errorMessage: errMsg } }).catch(() => {});
+                throw new Error(errMsg);
+              }
+              console.log(`[TaskOrbit] 'forEachRow' loop row ${iterations + 1}/${count} completed.`);
+              chrome.runtime.sendMessage({ type: "addLog", entry: { workflowId: window.__wfId, workflowName: window.__wfName, durationMs: 0, status: "success", errorMessage: `Loop 'forEachRow' row ${iterations + 1}/${count} completed.` } }).catch(() => {});
               iterations++;
             }
           }

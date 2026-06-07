@@ -45,6 +45,7 @@ const els = {
   newStepType: document.getElementById("newStepType"),
   addStepBtn: document.getElementById("addStepBtn"),
   exportOneBtn: document.getElementById("exportOneBtn"),
+  clearMemoryBtn: document.getElementById("clearMemoryBtn"),
   deleteBtn: document.getElementById("deleteBtn"),
   saveStatus: document.getElementById("saveStatus"),
   variableList: document.getElementById("variableList"),
@@ -106,6 +107,15 @@ function populateStepTypeSelect() {
 }
 
 function bindEvents() {
+  els.clearMemoryBtn.addEventListener("click", async () => {
+    if (!current) return;
+    if (confirm("Are you sure you want to clear the Memory Bank? This will reset the processed rows and scraped unique keys for this workflow.")) {
+      const memKey = `memory_bank_${current.id}`;
+      await chrome.storage.local.remove(memKey);
+      setSaveStatus("Memory Bank cleared.", "ok");
+    }
+  });
+
   els.newBtn.addEventListener("click", onNew);
   els.exportBtn.addEventListener("click", onExport);
   els.importBtn.addEventListener("click", () => els.importFile.click());
@@ -860,6 +870,15 @@ function renderStep(step, i, parentArray) {
       fields.appendChild(opWrap);
 
       fields.appendChild(field("Value", step.value || "", (v) => (step.value = v), "100"));
+    } else if (step.type === "load_csv") {
+      fields.appendChild(textareaField("CSV Data or URL", step.value || "", (v) => (step.value = v), "Paste raw CSV data, or http://..."));
+    } else if (step.type === "append_row") {
+      fields.appendChild(field("Variables to Save", step.value || "", (v) => (step.value = v), "e.g. title, price (leave blank to save all)"));
+      fields.appendChild(field("Unique Key (Optional)", step.selector || "", (v) => (step.selector = v), "e.g. {{url}} to prevent duplicates"));
+    } else if (step.type === "export_table") {
+      fields.appendChild(field("Filename", step.value || "", (v) => (step.value = v), "e.g. data.csv"));
+    } else if (step.type === "mark_row_processed") {
+      // No extra fields required
     } else {
       const placeholder = step.type === "navigate" ? "https://..." : step.type === "check" ? "true / false" : step.type === "selectOption" ? "option value or text" : step.type === "waitNetworkIdle" ? "Idle duration (ms)" : step.type === "extractText" ? "Variable name to save to" : step.type === "exportData" ? "Format: 'csv' or 'json'" : "text to type";
       fields.appendChild(field("Value", step.value || "", (v) => (step.value = v), placeholder));
@@ -902,6 +921,7 @@ function renderStep(step, i, parentArray) {
       <option value="repeat">Repeat N Times</option>
       <option value="whileExists">While Element Exists</option>
       <option value="forEach">For Each Element</option>
+      <option value="forEachRow">For Each Data Row (CSV)</option>
     </select>`;
     const modeSel = modeWrapper.querySelector("select");
     modeSel.value = step.mode || "repeat";
