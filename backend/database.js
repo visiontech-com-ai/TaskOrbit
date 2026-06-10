@@ -56,6 +56,19 @@ async function initDb() {
     )
   `);
 
+  await run(`
+    CREATE TABLE IF NOT EXISTS shared_workflows (
+      id TEXT PRIMARY KEY,
+      name TEXT NOT NULL,
+      description TEXT,
+      author_name TEXT,
+      workflow_data TEXT NOT NULL,
+      downloads INTEGER DEFAULT 0,
+      likes INTEGER DEFAULT 0,
+      created_at INTEGER NOT NULL
+    )
+  `);
+
   // Migrations for existing database schemas
   try {
     await run(`ALTER TABLE licenses ADD COLUMN email TEXT`);

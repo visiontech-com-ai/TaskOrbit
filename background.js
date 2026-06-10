@@ -47,6 +47,21 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     case "addLog":
       addLog(msg.entry).then(sendResponse);
       return true;
+    case "debugWorkflow":
+      debugWorkflow(msg.workflowId, msg.tabId, msg.variables).then(sendResponse);
+      return true;
+    case "debugPause":
+      // Relay from content script to popup
+      chrome.runtime.sendMessage({ type: "debugPauseRelay", ...msg }).catch(() => {});
+      return false;
+    case "debugResume":
+      // Relay from popup to content script
+      chrome.tabs.sendMessage(msg.tabId, { type: "debugResume", runAll: msg.runAll || false }).catch(() => {});
+      return false;
+    case "debugFinished":
+      // Relay from content script to popup
+      chrome.runtime.sendMessage({ type: "debugFinishedRelay", ...msg }).catch(() => {});
+      return false;
     default:
       return false;
   }
@@ -167,6 +182,55 @@ async function runWorkflow(workflowId, tabId, variables = null) {
   }
 
   return result;
+}
+
+async function debugWorkflow(workflowId, tabId, variables = null) {
+  const workflow = await getWorkflow(workflowId);
+  if (!workflow) return { ok: false, error: "Workflow not found" };
+
+  const capabilities = await getCapabilities();
+
+  // If no variables provided, use defaults
+  if (!variables && workflow.variables) {
+    variables = {};
+    workflow.variables.forEach(v => {
+      variables[v.name] = v.defaultValue || "";
+    });
+  }
+
+  let tab;
+  try {
+    tab = tabId ? await chrome.tabs.get(tabId) : (await chrome.tabs.query({ active: true, currentWindow: true }))[0];
+  } catch (e) {
+    return { ok: false, error: "No active tab" };
+  }
+  if (!tab) return { ok: false, error: "No active tab" };
+
+  try {
+    await chrome.scripting.executeScript({
+      target: { tabId: tab.id },
+      files: ["content/executor.js"]
+    });
+  } catch (e) {
+    return { ok: false, error: "Could not inject into page: " + e.message };
+  }
+
+  try {
+    // Send debugSteps instead of executeSteps — executor will pause between steps
+    chrome.tabs.sendMessage(tab.id, {
+      type: "debugSteps",
+      workflowId: workflow.id,
+      workflowName: workflow.name,
+      steps: workflow.steps,
+      variables: variables || {},
+      maxRetries: workflow.maxRetries !== undefined ? workflow.maxRetries : 3,
+      tabId: tab.id
+    });
+    // Don't await the execution result — the popup manages the debug session
+    return { ok: true, debug: true };
+  } catch (e) {
+    return { ok: false, error: "Page did not respond: " + e.message };
+  }
 }
 
 async function hasHostAccess(url) {

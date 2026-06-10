@@ -4,7 +4,7 @@
 
 The core strategy for TaskOrbit is a "Freemium with Visible Upsell" model. TaskOrbit Lite is designed to be fully functional for basic browser automation—providing enough value to be genuinely useful for small, linear tasks, establishing trust, and demonstrating the platform's reliability. 
 
-TaskOrbit Pro unlocks the "Turing-complete" automation capabilities (loops, variables, conditions) and scaling features (unlimited workflows, CSV processing) required by power users, QA engineers, data entry specialists, and organizations.
+TaskOrbit Pro unlocks the "Turing-complete" automation capabilities (loops, variables, conditions) and scaling features (unlimited workflows, CSV processing, smart deduplication) required by power users, QA engineers, data entry specialists, and organizations.
 
 **Key Principles:**
 - **No Crippleware**: The Lite features must work flawlessly. The user should never feel tricked into a broken experience.
@@ -16,7 +16,7 @@ TaskOrbit Pro unlocks the "Turing-complete" automation capabilities (loops, vari
 
 ## 2. Chrome Web Store Strategy
 
-**Recommendation: Single Extension with In-App Upgrade via License Activation**
+**Approach: Single Extension with In-App Upgrade via License Activation**
 
 * **Pros**: 
   - Centralized user base and review aggregation (boosts Web Store ranking).
@@ -27,51 +27,55 @@ TaskOrbit Pro unlocks the "Turing-complete" automation capabilities (loops, vari
   - Code bundle size is slightly larger for free users (negligible).
   - Requires a secure local license validation architecture.
 
-*Alternative*: Separate Lite and Pro extensions. This is discouraged because migrating local `chrome.storage` data between two different extensions is notoriously difficult and error-prone, requiring complex export/import flows that frustrate users.
-
 ---
 
-## 3. Architecture Design
+## 3. Architecture Design (Implemented)
 
 The architecture relies on a central **Capability Manager** (`shared/capabilities.js`) that sits between the UI/Executor and the Core Logic.
 
-1. **License Service**: Validates the license key against an external API and caches a cryptographically signed payload locally.
-2. **Capability Engine**: Reads the current license tier (Lite, Pro, Developer) and exposes a boolean map of allowed features.
-3. **UI Adapters**: The Options page and Popup read the Capability Engine to determine whether to lock UI elements.
-4. **Execution Guards**: The Background script and Executor double-check the Capability Engine before running workflows to prevent users from manually editing JSON to bypass UI locks.
+1. **License Service** (`shared/license.js`): Validates the license key against an external API and caches a cryptographically signed JWT payload locally. Supports offline grace periods.
+2. **Capability Engine** (`shared/capabilities.js`): Reads the current license tier (Lite, Pro) and exposes a boolean map of allowed features.
+3. **UI Adapters** (`options/options.js`): The Options page reads the Capability Engine to determine whether to lock UI elements with 🔒 icons and show upgrade modals.
+4. **Execution Guards** (`background.js`): The Background script double-checks the Capability Engine before running workflows to prevent users from manually editing JSON to bypass UI locks.
 
 ---
 
-## 4. Folder Structure Changes
+## 4. Project Structure
 
 ```text
-D:\github\TaskOrbit\
-├── docs/
-│   └── LITE_VS_PRO_PLAN.md      <-- This document
+TaskOrbit/
+├── manifest.json               # Extension manifest (Manifest V3)
+├── background.js               # Service worker: routing, scheduling, alarms, license checks
+├── sandbox.html / sandbox.js   # Sandboxed math expression evaluator
 ├── shared/
-│   ├── storage.js               <-- Unchanged (data access)
-│   ├── capabilities.js          <-- NEW: Feature flag definitions and tier logic
-│   └── license.js               <-- NEW: License validation and offline caching
+│   ├── storage.js              # Data model, STEP_TYPES (with groups), CRUD helpers
+│   ├── capabilities.js         # Feature flag definitions and tier logic
+│   └── license.js              # License validation, JWT verification, offline caching
+├── content/
+│   ├── executor.js             # Core workflow execution engine (loops, conditions, CSV, Memory Bank)
+│   ├── recorder.js             # Live action recording
+│   ├── toast.js                # Execution progress overlay
+│   ├── interceptor.js          # Network request monitoring
+│   └── autoReveal.js           # Password reveal injection
+├── popup/
+│   ├── popup.html / popup.js   # Browser toolbar popup UI
+│   └── popup.css
 ├── options/
-│   ├── upgrade/                 <-- NEW: UI components for upgrade flow
-│   │   ├── upgrade.html
-│   │   ├── upgrade.js
-│   │   └── upgrade.css
-│   ├── options.html
-│   └── options.js               <-- Modified to handle UI locks
-├── background/
-│   ├── background.js            <-- Modified to add execution guards
-│   └── licenseWorker.js         <-- NEW: Periodic background license validation
+│   ├── options.html            # Full workflow editor page
+│   ├── options.js              # Visual builder, JSON editor, settings, logs
+│   └── options.css
+├── backend/                    # Licensing API server (Express + SQLite3 + JWT)
+└── docs/
+    └── LITE_VS_PRO_PLAN.md     # This document
 ```
 
 ---
 
-## 5. Feature Flag Implementation
+## 5. Feature Flag Implementation (Implemented)
 
 **`shared/capabilities.js`**
 
 ```javascript
-// Base feature flags
 const TIER_CAPABILITIES = {
   LITE: {
     maxWorkflows: 3,
@@ -80,7 +84,7 @@ const TIER_CAPABILITIES = {
     allowLoops: false,
     allowVariables: false,
     allowConditions: false,
-    allowDataProcessing: false // CSV, Export
+    allowDataProcessing: false  // CSV, Export, Webhooks, Nested Workflows
   },
   PRO: {
     maxWorkflows: Infinity,
@@ -92,153 +96,147 @@ const TIER_CAPABILITIES = {
     allowDataProcessing: true
   }
 };
-
-export async function getCapabilities() {
-  const license = await getActiveLicense(); // from license.js
-  return license && license.isValid ? TIER_CAPABILITIES.PRO : TIER_CAPABILITIES.LITE;
-}
-
-export async function canAddWorkflow(currentCount) {
-  const caps = await getCapabilities();
-  return currentCount < caps.maxWorkflows;
-}
 ```
 
 ---
 
-## 6. Licensing Architecture
+## 6. Complete Feature Matrix
 
-To prevent simple bypassing, the licensing system must be robust but operate fully within the extension.
+| Feature | Lite (Free) | Pro |
+| :--- | :---: | :---: |
+| **Workflows** | Up to 3 | Unlimited |
+| **Steps per workflow** | Up to 10 | Unlimited |
+| **Live Recording** | ✅ | ✅ |
+| **Visual Drag-and-Drop Editor** | ✅ | ✅ |
+| **Inline JSON Editor** | ✅ | ✅ |
+| **Grouped Step Categories** | ✅ | ✅ |
+| **Import/Export (JSON)** | ✅ | ✅ |
+| **Workflow Folders** | ✅ | ✅ |
+| **Keyboard Shortcuts** | ✅ | ✅ |
+| **Execution Logs** | ✅ | ✅ |
+| **Password Reveal** | ✅ | ✅ |
+| **Navigate to URL** | ✅ | ✅ |
+| **Take Screenshot** | ✅ | ✅ |
+| **Click / Type / Select / Check** | ✅ | ✅ |
+| **Press Key** | ✅ | ✅ |
+| **Wait / Wait for Element / Network Idle** | ✅ | ✅ |
+| **Auto-Run on Page Load** | ❌ | ✅ |
+| **Background Scheduling** | ❌ | ✅ |
+| **Variables & Extraction** | ❌ | ✅ |
+| **Calculate Math** | ❌ | ✅ |
+| **Export Variables (CSV/JSON)** | ❌ | ✅ |
+| **If/Else Conditions** | ❌ | ✅ |
+| **If Variable (with operators)** | ❌ | ✅ |
+| **Loop Container** | ❌ | ✅ |
+| **For Each Element** | ❌ | ✅ |
+| **For Each Data Row** | ❌ | ✅ |
+| **Load CSV Data** | ❌ | ✅ |
+| **Save to Table Row** | ❌ | ✅ |
+| **Export Table as CSV** | ❌ | ✅ |
+| **Mark Row as Processed** | ❌ | ✅ |
+| **Smart Deduplication (Memory Bank)** | ❌ | ✅ |
+| **Run Workflow (Nested)** | ❌ | ✅ |
+| **Send Webhook** | ❌ | ✅ |
 
-1. **Activation**: User enters a License Key (e.g., from LemonSqueezy or Gumroad).
-2. **Validation**: Extension pings your activation API (`https://api.taskorbit.com/activate`).
+---
+
+## 7. Licensing Architecture (Implemented)
+
+The licensing system is fully operational:
+
+1. **Activation**: User enters an email and License Key (format: `TO-XXXX-XXXX-XXXX`) in the Settings panel.
+2. **Validation**: Extension sends a request to the activation API.
 3. **Signed Payload**: The API responds with a JWT (JSON Web Token) containing the tier, expiry, and a cryptographic signature.
-4. **Local Verification**: `license.js` verifies the JWT signature locally using a hardcoded public key to prevent local spoofing.
-5. **Periodic Checks**: A Chrome Alarm triggers `licenseWorker.js` once every 48 hours to silently ping the server to ensure the license hasn't been revoked/refunded.
-6. **Offline Tolerance**: If the user is offline, the extension relies on the cached JWT until its `exp` (expiration) date is reached, ensuring no interruption during travel.
+4. **Local Verification**: `license.js` verifies the JWT signature locally using a hardcoded public key.
+5. **Periodic Checks**: A Chrome Alarm triggers the background worker every 60 minutes to silently validate the license hasn't been revoked.
+6. **Offline Tolerance**: If the user is offline, the extension relies on the cached JWT until its expiration date, with a 7-day grace period.
+7. **License Binding**: Each key is bound 1:1 to an email/device ID to prevent sharing.
+
+### UI Implementation
+- **Settings Panel**: Contains tier badge (LITE/PRO), email and key inputs, Activate button, and Remove License button.
+- **Activate Button**: Auto-disables and greys out when a Pro license is already active.
+- **Upgrade Modal**: Appears contextually when a Lite user attempts to use a locked feature, with inline license activation.
 
 ---
 
-## 7. Storage Schema Examples
+## 8. Step Type Grouping (Implemented)
 
-**Current Schema (Lite/Unlicensed):**
-```json
-{
-  "settings": {
-    "revealPasswords": "off",
-    "licenseKey": null,
-    "licenseData": null
-  },
-  "workflows": [
-    { "id": "wf_1", "name": "Basic Login", "steps": [...] }
-  ]
-}
-```
+Steps in the dropdown are organized into logical `<optgroup>` categories:
 
-**Pro Schema (Activated):**
-```json
-{
-  "settings": {
-    "revealPasswords": "off",
-    "licenseKey": "XXXX-YYYY-ZZZZ-AAAA",
-    "licenseData": {
-      "token": "eyJhbGciOiJIUzI1NiIsInR5c...",
-      "tier": "PRO",
-      "status": "active",
-      "lastChecked": 1717589234000,
-      "offlineGraceEnds": 1718194034000
-    }
-  },
-  "workflows": [
-    // Unlimited workflows
-  ]
-}
-```
+| Group | Steps |
+| :--- | :--- |
+| **Interaction** | Click, Focus, Type text, Clear field, Select option, Check/uncheck, Press Key |
+| **Wait & Flow** | Wait (delay), Wait for element, Wait visible, Wait invisible, Wait Network Idle, Run Workflow, Send Webhook |
+| **Data & Variables** | Extract Text, Calculate Math, Export Variables, Load CSV Data, Save to Table Row, Export Table as CSV, Mark Row as Processed |
+| **Browser** | Navigate to URL, Take Screenshot |
+| **Logic & Loops** | If Element Exists, If Element Does Not Exist, If Variable, Else, End If, Loop Container |
+
+Pro-only steps display a 🔒 icon and "(Pro)" suffix in the dropdown.
 
 ---
 
-## 8. Upgrade Workflow & UI Wireframes
+## 9. Smart Deduplication System (Implemented)
 
-### UI Concept: Step Type Dropdown
+### Memory Bank Architecture
 
-```text
-[ Select Step Type ▼ ]
------------------------
-  Click Element
-  Type Text
-  Wait for Element
------------------------
-🔒 Loop Container (Pro)
-🔒 If Element Exists (Pro)
-🔒 Extract Variable (Pro)
-```
-*Action*: Clicking a `🔒 (Pro)` item does not close the dropdown, but triggers the Upgrade Modal.
+Each workflow has an isolated memory bank stored at key `memory_bank_{workflowId}` in `chrome.storage.local`. It contains an array of string identifiers (hashes or unique keys).
 
-### UI Concept: Upgrade Modal
+**Scraping Deduplication (`append_row`)**:
+- User specifies a **Unique Key** field (e.g., `{{url}}`), mapped to `step.selector`.
+- Before appending a row, the engine checks if the key exists in the Memory Bank.
+- If found → skip silently. If new → append row and add key to bank.
 
-```text
-+-------------------------------------------------+
-|               🚀 Unlock TaskOrbit Pro            |
-|                                                 |
-| Loops, variables, and auto-run are advanced     |
-| features reserved for Pro users.                |
-|                                                 |
-| [✓] Unlimited Workflows                         |
-| [✓] Logic & Variables                           |
-| [✓] Auto-run Automation                         |
-|                                                 |
-|          [ Upgrade to Pro - $X/mo ]             |
-|                                                 |
-| Already purchased? [ Enter License Key ]        |
-+-------------------------------------------------+
-```
+**Data Injection Deduplication (`forEachRow`)**:
+- Before processing each CSV row, the engine computes a SHA-256 hash of the row's JSON representation.
+- If the hash exists in the Memory Bank → skip the row automatically.
+- This enables crash-recovery: re-running a workflow skips already-processed rows.
 
-### UI Concept: Limit Reached Banner
+**Manual Marking (`mark_row_processed`)**:
+- Placed at the end of a loop body as an explicit checkpoint.
+- Hashes the current row and saves it to the Memory Bank.
 
-When a Lite user clicks `+ New Workflow` and they already have 3:
-```text
-[ ! ] You've reached the limit of 3 workflows on the Lite plan. 
-      [ Upgrade to Pro ] to create unlimited workflows.
-```
+**Reset**: The red **Clear Memory Bank** button in the workflow editor footer clears `memory_bank_{workflowId}` from local storage.
 
 ---
 
-## 9. Migration Plan from Current Version
+## 10. Implementation Status
 
-Because the current version has no limits, existing users might already have more than 3 workflows or use loops.
+### ✅ Phase 1: Core Capabilities Foundation — COMPLETE
+- [x] Created `shared/capabilities.js` with `TIER_CAPABILITIES`.
+- [x] Created `shared/license.js` with JWT validation and offline caching.
+- [x] Updated `options.html` and `options.js` to render 🔒 icons dynamically.
 
-**Strategy: Grandfathering vs. Hard Limit**
-* **Recommended approach**: Enforce the limit gracefully.
-  * If a user has 10 workflows upon the update, they *keep* all 10, but cannot create an 11th.
-  * If a user has a workflow with a Loop, that workflow is flagged as `(Pro Required)`. It remains in their list but cannot be executed until they upgrade.
-* **Onboarding Popup**: On the first run after the update, display a changelog explaining the new Lite/Pro split, thanking early adopters, and offering them a steep discount code (e.g., `EARLYADOPTER50`) for the first year.
+### ✅ Phase 2: Feature Locking — COMPLETE
+- [x] **Limits Guard**: `onNew` and `onImport` check `maxWorkflows`.
+- [x] **Step Count Guard**: Prevents adding steps beyond the limit.
+- [x] **Advanced Features Guard**: Auto-run checkbox, locked step types, upgrade modal triggers.
+- [x] **Execution Guard**: `background.js` aborts execution if Lite user runs a workflow with Pro steps.
 
----
+### ✅ Phase 3: Upgrade UI & UX — COMPLETE
+- [x] Built the Upgrade Modal component with inline license activation.
+- [x] Integrated upgrade triggers on all locked interaction points.
+- [x] Built the License & Tier UI inside Global Settings view.
+- [x] Activate button auto-disables when Pro is already active.
 
-## 10. Step-by-Step Implementation Roadmap
+### ✅ Phase 4: Backend & Licensing Integration — COMPLETE
+- [x] Express API server with rate limiting and JWT issuance.
+- [x] SQLite3 database for license key storage.
+- [x] Admin dashboard at `/admin` with key management.
+- [x] Docker orchestration with volume persistence.
+- [x] Periodic license validation via Chrome Alarms (60-minute interval).
 
-### Phase 1: Core Capabilities Foundation
-- [ ] Create `shared/capabilities.js` and define `TIER_CAPABILITIES`.
-- [ ] Create `shared/license.js` with mock validation logic (returning LITE by default).
-- [ ] Update `options.html` and `options.js` to render the 🔒 icons dynamically based on capabilities.
+### ✅ Phase 5: Advanced Features — COMPLETE
+- [x] Advanced branching logic (If Variable with full operator set).
+- [x] CSV data processing (Load, iterate, scrape, export).
+- [x] Smart deduplication via Memory Bank.
+- [x] Inline JSON editor with validation.
+- [x] Grouped step type categories.
 
-### Phase 2: Feature Locking
-- [ ] **Limits Guard**: Update `onNew` and `onImport` in `options.js` to check `maxWorkflows`.
-- [ ] **Step Count Guard**: Prevent adding the 11th step.
-- [ ] **Advanced Features Guard**: Disable the "Auto-run" checkbox in the UI. Prevent dropping locked step types into the workflow.
-- [ ] **Execution Guard**: Update `background.js -> runWorkflow()` to abort execution if a Lite user attempts to run a workflow containing Pro steps.
+### ✅ Phase 6: Interactive Debugger & Templates Gallery — COMPLETE
+- [x] Step-by-Step Debugger (interactive execution, element highlighting, and variable inspector).
+- [x] Workflow Templates Gallery (12 pre-built templates across 5 categories).
 
-### Phase 3: Upgrade UI & UX
-- [ ] Build the Upgrade Modal component.
-- [ ] Integrate upgrade triggers on all locked interaction points.
-- [ ] Build the License Entry UI inside the Global Settings view.
-
-### Phase 4: Backend & Licensing Integration
-- [ ] Set up Merchant of Record (e.g., LemonSqueezy) for payment processing and license key generation.
-- [ ] Implement actual JWT validation logic in `license.js`.
-- [ ] Implement `licenseWorker.js` chrome alarm for periodic checks.
-
-### Phase 5: Testing & Rollout
-- [ ] Write integration tests for license downgrade (grace period expiry).
-- [ ] Test migration of existing local storage.
-- [ ] Publish to Web Store as an update.
+### 🔜 Phase 7: Planned
+- [ ] Cron expression scheduling (replace basic interval logic).
+- [ ] Marketplace (community hub to share and discover workflows).
+- [ ] AI-assisted selector recovery.

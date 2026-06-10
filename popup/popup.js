@@ -15,6 +15,7 @@ const REC_STATE_KEY = "recordingState";
 const collapsedFolders = new Set();
 
 let pendingRunId = null;
+let pendingAction = "run"; // "run" or "debug"
 
 document.getElementById("newBtn").addEventListener("click", onNew);
 document.getElementById("optionsBtn").addEventListener("click", () => chrome.runtime.openOptionsPage());
@@ -44,7 +45,88 @@ varRunBtn.addEventListener("click", async () => {
     vars[input.dataset.name] = input.value;
   }
   
-  await doRun(wfId, vars);
+  if (pendingAction === "debug") {
+    await doDebugRun(wfId, vars);
+  } else {
+    await doRun(wfId, vars);
+  }
+});
+
+// Debug panel button event listeners
+document.getElementById("debugNextBtn").addEventListener("click", () => {
+  const tabId = parseInt(document.getElementById("debugNextBtn").dataset.tabId);
+  if (!tabId) return;
+  chrome.runtime.sendMessage({ type: "debugResume", tabId, runAll: false });
+  document.getElementById("debugStepInfo").textContent = "Running step...";
+});
+
+document.getElementById("debugRunAllBtn").addEventListener("click", () => {
+  const tabId = parseInt(document.getElementById("debugRunAllBtn").dataset.tabId);
+  if (!tabId) return;
+  chrome.runtime.sendMessage({ type: "debugResume", tabId, runAll: true });
+  document.getElementById("debugPanel").classList.add("hidden");
+  setStatus("Running normally...");
+});
+
+document.getElementById("debugStopBtn").addEventListener("click", async () => {
+  const tabId = parseInt(document.getElementById("debugNextBtn").dataset.tabId);
+  if (!tabId) return;
+  chrome.tabs.sendMessage(tabId, { type: "emergencyStop" }).catch(() => {});
+  document.getElementById("debugPanel").classList.add("hidden");
+  setStatus("Stopped", "err");
+});
+
+// Debug message receiver
+chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
+  if (msg && msg.type === "debugPauseRelay") {
+    const debugPanel = document.getElementById("debugPanel");
+    debugPanel.classList.remove("hidden");
+    
+    document.getElementById("debugWorkflowName").textContent = msg.workflowName || "";
+    
+    // Format the step label beautifully
+    let stepLabel = "End of workflow";
+    if (msg.nextStep) {
+      stepLabel = `${msg.nextStep.name || msg.nextStep.type}`;
+    }
+    document.getElementById("debugStepInfo").textContent = `Step ${msg.stepIndex + 2}: ${stepLabel}`;
+    
+    // Store tabId on the buttons
+    document.getElementById("debugNextBtn").dataset.tabId = msg.tabId;
+    document.getElementById("debugRunAllBtn").dataset.tabId = msg.tabId;
+    
+    // Populate variables inspector
+    const tbody = document.getElementById("debugVarBody");
+    tbody.innerHTML = "";
+    const vars = msg.variables || {};
+    const keys = Object.keys(vars);
+    if (keys.length === 0) {
+      tbody.innerHTML = `<tr><td colspan="2" style="padding: 6px; text-align: center; color: #92400e;">No variables defined</td></tr>`;
+    } else {
+      keys.forEach(k => {
+        const tr = document.createElement("tr");
+        tr.style.borderBottom = "1px solid #fde68a";
+        const tdName = document.createElement("td");
+        tdName.style.padding = "4px 6px";
+        tdName.style.fontWeight = "bold";
+        tdName.textContent = k;
+        const tdVal = document.createElement("td");
+        tdVal.style.padding = "4px 6px";
+        tdVal.textContent = typeof vars[k] === "object" ? JSON.stringify(vars[k]) : vars[k];
+        tr.appendChild(tdName);
+        tr.appendChild(tdVal);
+        tbody.appendChild(tr);
+      });
+    }
+  } else if (msg && msg.type === "debugFinishedRelay") {
+    // Hide debug panel and show completion status
+    document.getElementById("debugPanel").classList.add("hidden");
+    if (msg.ok) {
+      setStatus("Debug Run completed successfully.", "ok");
+    } else {
+      setStatus(`Debug Run failed: ${msg.error || "Unknown error"}`, "err");
+    }
+  }
 });
 
 init();
@@ -199,6 +281,7 @@ function renderItem(wf, recording) {
   actions.className = "item-actions";
 
   const runBtn = button("Run", "btn btn-primary btn-sm", () => onRun(wf.id));
+  const debugBtn = button("🐛", "btn btn-sm btn-debug", () => onDebug(wf.id));
   const isRecordingThis = recording && recording.workflowId === wf.id;
   const recBtn = button(
     isRecordingThis ? "Recording..." : "Record",
@@ -209,6 +292,7 @@ function renderItem(wf, recording) {
   const editBtn = button("Edit", "btn btn-sm", () => openEditor(wf.id));
 
   actions.appendChild(runBtn);
+  actions.appendChild(debugBtn);
   actions.appendChild(recBtn);
   actions.appendChild(editBtn);
   li.appendChild(actions);
@@ -235,6 +319,7 @@ async function onNew() {
 }
 
 async function onRun(workflowId) {
+  pendingAction = "run";
   const wf = await getWorkflow(workflowId);
   if (!wf) return;
   
@@ -260,6 +345,62 @@ async function onRun(workflowId) {
     varPromptEl.classList.remove("hidden");
   } else {
     await doRun(workflowId, {});
+  }
+}
+
+async function onDebug(workflowId) {
+  pendingAction = "debug";
+  const wf = await getWorkflow(workflowId);
+  if (!wf) return;
+  
+  if (wf.variables && wf.variables.length > 0) {
+    pendingRunId = workflowId;
+    varInputsEl.innerHTML = "";
+    wf.variables.forEach(v => {
+      const row = document.createElement("div");
+      row.style.display = "flex";
+      row.style.flexDirection = "column";
+      const lbl = document.createElement("label");
+      lbl.textContent = v.name;
+      lbl.style.fontSize = "12px";
+      const inp = document.createElement("input");
+      inp.type = "text";
+      inp.value = v.defaultValue || "";
+      inp.dataset.name = v.name;
+      inp.style.padding = "4px";
+      row.appendChild(lbl);
+      row.appendChild(inp);
+      varInputsEl.appendChild(row);
+    });
+    varPromptEl.classList.remove("hidden");
+  } else {
+    await doDebugRun(workflowId, {});
+  }
+}
+
+async function doDebugRun(workflowId, variables) {
+  setStatus("Debugging...");
+  const tab = await getActiveTab();
+  if (!tab) {
+    setStatus("No active tab found", "err");
+    return;
+  }
+  
+  const debugPanel = document.getElementById("debugPanel");
+  debugPanel.classList.remove("hidden");
+  document.getElementById("debugStepInfo").textContent = "Initializing...";
+  document.getElementById("debugWorkflowName").textContent = "";
+  document.getElementById("debugVarBody").innerHTML = `<tr><td colspan="2" style="padding: 6px; text-align: center; color: #92400e;">Initializing debugger...</td></tr>`;
+  
+  const res = await chrome.runtime.sendMessage({ 
+    type: "debugWorkflow", 
+    workflowId, 
+    tabId: tab.id,
+    variables 
+  });
+  if (!res || !res.ok) {
+    debugPanel.classList.add("hidden");
+    setStatus("Debug start failed: " + (res ? res.error : "no response"), "err");
   }
 }
 

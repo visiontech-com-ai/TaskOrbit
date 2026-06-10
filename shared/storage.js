@@ -5,35 +5,39 @@ export const STORAGE_KEY = "workflows";
 export const LOGS_KEY = "workflow_logs";
 
 export const STEP_TYPES = {
-  click: { label: "Click element", needs: ["selector"] },
-  focus: { label: "Focus element", needs: ["selector"] },
-  check: { label: "Check / uncheck", needs: ["selector", "value"] },
-  setText: { label: "Type text", needs: ["selector", "value"] },
-  clearField: { label: "Clear field", needs: ["selector"] },
-  selectOption: { label: "Select option", needs: ["selector", "value"] },
-  waitFor: { label: "Wait for element", needs: ["selector", "delayMs"] },
-  waitVisible: { label: "Wait for element to be visible", needs: ["selector", "delayMs"] },
-  waitInvisible: { label: "Wait for element to be invisible", needs: ["selector", "delayMs"] },
-  wait: { label: "Wait (delay)", needs: ["delayMs"] },
-  waitNetworkIdle: { label: "Wait for Network Idle", needs: ["value", "delayMs"] },
-  extractText: { label: "Extract Text", needs: ["selector", "value"], proFeature: "variables" },
-  calculateMath: { label: "Calculate Math", needs: ["value", "selector"], proFeature: "variables" },
-  exportData: { label: "Export Variables", needs: ["value"], proFeature: "variables" },
-  runWorkflow: { label: "Run Workflow (Nested)", needs: ["value"], proFeature: "advanced" },
-  pressKey: { label: "Press Key", needs: ["selector", "value"] },
-  sendWebhook: { label: "Send Webhook", needs: ["value", "selector"], proFeature: "advanced" },
-  append_row: { label: "Save Variables to Table Row", needs: ["selector", "value"], proFeature: "advanced" },
-  export_table: { label: "Export Table as CSV", needs: ["value"], proFeature: "advanced" },
-  load_csv: { label: "Load CSV Data", needs: ["value"], proFeature: "advanced" },
-  mark_row_processed: { label: "Mark Row as Processed", needs: [], proFeature: "advanced" },
-  navigate: { label: "Navigate to URL", needs: ["value"] },
-  screenshot: { label: "Take Screenshot", needs: ["value"] },
-  if_exists: { label: "If Element Exists", needs: ["selector"], proFeature: "conditions" },
-  if_not_exists: { label: "If Element Does Not Exist", needs: ["selector"], proFeature: "conditions" },
-  if_variable: { label: "If Variable", needs: ["selector", "selectorType", "value"], proFeature: "conditions" },
-  else: { label: "Else", needs: [], proFeature: "conditions" },
-  end_if: { label: "End If", needs: [], proFeature: "conditions" },
-  loop: { label: "Loop Container", needs: [], proFeature: "loops" }
+  click: { label: "Click element", needs: ["selector"], group: "Interaction" },
+  focus: { label: "Focus element", needs: ["selector"], group: "Interaction" },
+  check: { label: "Check / uncheck", needs: ["selector", "value"], group: "Interaction" },
+  setText: { label: "Type text", needs: ["selector", "value"], group: "Interaction" },
+  clearField: { label: "Clear field", needs: ["selector"], group: "Interaction" },
+  selectOption: { label: "Select option", needs: ["selector", "value"], group: "Interaction" },
+  pressKey: { label: "Press Key", needs: ["selector", "value"], group: "Interaction" },
+
+  waitFor: { label: "Wait for element", needs: ["selector", "delayMs"], group: "Wait & Flow" },
+  waitVisible: { label: "Wait for element to be visible", needs: ["selector", "delayMs"], group: "Wait & Flow" },
+  waitInvisible: { label: "Wait for element to be invisible", needs: ["selector", "delayMs"], group: "Wait & Flow" },
+  wait: { label: "Wait (delay)", needs: ["delayMs"], group: "Wait & Flow" },
+  waitNetworkIdle: { label: "Wait for Network Idle", needs: ["value", "delayMs"], group: "Wait & Flow" },
+  runWorkflow: { label: "Run Workflow (Nested)", needs: ["value"], proFeature: "advanced", group: "Wait & Flow" },
+  sendWebhook: { label: "Send Webhook", needs: ["value", "selector"], proFeature: "advanced", group: "Wait & Flow" },
+
+  extractText: { label: "Extract Text", needs: ["selector", "value"], proFeature: "variables", group: "Data & Variables" },
+  calculateMath: { label: "Calculate Math", needs: ["value", "selector"], proFeature: "variables", group: "Data & Variables" },
+  exportData: { label: "Export Variables", needs: ["value"], proFeature: "variables", group: "Data & Variables" },
+  append_row: { label: "Save Variables to Table Row", needs: ["selector", "value"], proFeature: "advanced", group: "Data & Variables" },
+  export_table: { label: "Export Table as CSV", needs: ["value"], proFeature: "advanced", group: "Data & Variables" },
+  load_csv: { label: "Load CSV Data", needs: ["value"], proFeature: "advanced", group: "Data & Variables" },
+  mark_row_processed: { label: "Mark Row as Processed", needs: [], proFeature: "advanced", group: "Data & Variables" },
+
+  navigate: { label: "Navigate to URL", needs: ["value"], group: "Browser" },
+  screenshot: { label: "Take Screenshot", needs: ["value"], group: "Browser" },
+
+  if_exists: { label: "If Element Exists", needs: ["selector"], proFeature: "conditions", group: "Logic & Loops" },
+  if_not_exists: { label: "If Element Does Not Exist", needs: ["selector"], proFeature: "conditions", group: "Logic & Loops" },
+  if_variable: { label: "If Variable", needs: ["selector", "selectorType", "value"], proFeature: "conditions", group: "Logic & Loops" },
+  else: { label: "Else", needs: [], proFeature: "conditions", group: "Logic & Loops" },
+  end_if: { label: "End If", needs: [], proFeature: "conditions", group: "Logic & Loops" },
+  loop: { label: "Loop Container", needs: [], proFeature: "loops", group: "Logic & Loops" }
 };
 
 export const COMPARISON_OPERATORS = {

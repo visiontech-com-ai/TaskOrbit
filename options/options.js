@@ -18,6 +18,7 @@ import {
 } from "../shared/storage.js";
 import { getCapabilities } from "../shared/capabilities.js";
 import { getActiveLicense, activateLicense, removeLicense } from "../shared/license.js";
+import { TEMPLATES, TEMPLATE_CATEGORIES } from "../shared/templates.js";
 
 const els = {
   wfList: document.getElementById("wfList"),
@@ -44,6 +45,16 @@ const els = {
   stepList: document.getElementById("stepList"),
   newStepType: document.getElementById("newStepType"),
   addStepBtn: document.getElementById("addStepBtn"),
+  
+  // JSON Editor
+  editJsonBtn: document.getElementById("editJsonBtn"),
+  visualBuilderSteps: document.getElementById("visualBuilderSteps"),
+  jsonBuilderContainer: document.getElementById("jsonBuilderContainer"),
+  jsonBuilderTextarea: document.getElementById("jsonBuilderTextarea"),
+  jsonBuilderApplyBtn: document.getElementById("jsonBuilderApplyBtn"),
+  jsonBuilderCancelBtn: document.getElementById("jsonBuilderCancelBtn"),
+  jsonBuilderError: document.getElementById("jsonBuilderError"),
+  
   exportOneBtn: document.getElementById("exportOneBtn"),
   clearMemoryBtn: document.getElementById("clearMemoryBtn"),
   deleteBtn: document.getElementById("deleteBtn"),
@@ -61,7 +72,27 @@ const els = {
   revealSitesContainer: document.getElementById("revealSitesContainer"),
   revealSiteList: document.getElementById("revealSiteList"),
   newRevealSite: document.getElementById("newRevealSite"),
-  addRevealSiteBtn: document.getElementById("addRevealSiteBtn")
+  addRevealSiteBtn: document.getElementById("addRevealSiteBtn"),
+
+  // Templates
+  templatesBtn: document.getElementById("templatesBtn"),
+  templatesView: document.getElementById("templatesView"),
+  templateCategoryFilters: document.getElementById("templateCategoryFilters"),
+  templateCards: document.getElementById("templateCards"),
+
+  // Marketplace
+  marketplaceBtn: document.getElementById("marketplaceBtn"),
+  marketplaceView: document.getElementById("marketplaceView"),
+  marketplaceSearch: document.getElementById("marketplaceSearch"),
+  marketplaceSort: document.getElementById("marketplaceSort"),
+  marketplaceCards: document.getElementById("marketplaceCards"),
+  shareWfBtn: document.getElementById("shareWfBtn"),
+  shareModal: document.getElementById("shareModal"),
+  shareAuthorInput: document.getElementById("shareAuthorInput"),
+  shareDescInput: document.getElementById("shareDescInput"),
+  shareModalError: document.getElementById("shareModalError"),
+  closeShareModalBtn: document.getElementById("closeShareModalBtn"),
+  confirmShareBtn: document.getElementById("confirmShareBtn")
 };
 
 let workflows = [];
@@ -69,6 +100,7 @@ let current = null; // working copy of the selected workflow
 const collapsedFolders = new Set(); // persists collapse state for the session
 let extensionSettings = null;
 let capabilities = null;
+let selectedCategory = "all";
 
 init();
 
@@ -88,21 +120,39 @@ async function init() {
 
 function populateStepTypeSelect() {
   els.newStepType.innerHTML = "";
-  const sorted = Object.entries(STEP_TYPES).sort(([, a], [, b]) => a.label.localeCompare(b.label));
-  for (const [type, def] of sorted) {
-    const isLocked = def.proFeature && !capabilities.allowDataProcessing && !capabilities.allowConditions && !capabilities.allowLoops && !capabilities.allowVariables;
-    // Actually we can be more granular. For now, if def.proFeature exists and ANY of the advanced features are disabled (Lite), lock it.
-    let locked = false;
-    if (def.proFeature === "loops" && !capabilities.allowLoops) locked = true;
-    if (def.proFeature === "conditions" && !capabilities.allowConditions) locked = true;
-    if (def.proFeature === "variables" && !capabilities.allowVariables) locked = true;
-    if (def.proFeature === "advanced" && !capabilities.allowDataProcessing) locked = true;
+  
+  // Group the steps
+  const groups = {};
+  for (const [type, def] of Object.entries(STEP_TYPES)) {
+    const groupName = def.group || "Other";
+    if (!groups[groupName]) groups[groupName] = [];
+    groups[groupName].push({ type, def });
+  }
 
-    const opt = document.createElement("option");
-    opt.value = type;
-    opt.textContent = (locked ? "🔒 " : "") + def.label + (locked ? " (Pro)" : "");
-    if (locked) opt.dataset.locked = "true";
-    els.newStepType.appendChild(opt);
+  // Sort groups and then sort items within each group
+  const sortedGroupNames = Object.keys(groups).sort();
+  
+  for (const groupName of sortedGroupNames) {
+    const optgroup = document.createElement("optgroup");
+    optgroup.label = groupName;
+    
+    const sortedItems = groups[groupName].sort((a, b) => a.def.label.localeCompare(b.def.label));
+    
+    for (const { type, def } of sortedItems) {
+      let locked = false;
+      if (def.proFeature === "loops" && !capabilities.allowLoops) locked = true;
+      if (def.proFeature === "conditions" && !capabilities.allowConditions) locked = true;
+      if (def.proFeature === "variables" && !capabilities.allowVariables) locked = true;
+      if (def.proFeature === "advanced" && !capabilities.allowDataProcessing) locked = true;
+
+      const opt = document.createElement("option");
+      opt.value = type;
+      opt.textContent = (locked ? "🔒 " : "") + def.label + (locked ? " (Pro)" : "");
+      if (locked) opt.dataset.locked = "true";
+      optgroup.appendChild(opt);
+    }
+    
+    els.newStepType.appendChild(optgroup);
   }
 }
 
@@ -118,6 +168,45 @@ function bindEvents() {
 
   els.newBtn.addEventListener("click", onNew);
   els.exportBtn.addEventListener("click", onExport);
+  
+  // JSON Editor Events
+  els.editJsonBtn.addEventListener("click", () => {
+    els.visualBuilderSteps.classList.add("hidden");
+    els.jsonBuilderContainer.classList.remove("hidden");
+    els.editJsonBtn.classList.add("hidden");
+    els.jsonBuilderError.textContent = "";
+    // Clean up current object for editing (remove runtime states)
+    const clone = structuredClone(current);
+    delete clone._parsedSites;
+    els.jsonBuilderTextarea.value = JSON.stringify(clone, null, 2);
+  });
+
+  els.jsonBuilderCancelBtn.addEventListener("click", () => {
+    els.jsonBuilderContainer.classList.add("hidden");
+    els.visualBuilderSteps.classList.remove("hidden");
+    els.editJsonBtn.classList.remove("hidden");
+  });
+
+  els.jsonBuilderApplyBtn.addEventListener("click", () => {
+    try {
+      const parsed = JSON.parse(els.jsonBuilderTextarea.value);
+      if (!parsed || typeof parsed !== "object") throw new Error("JSON must be an object.");
+      
+      // Merge changes into current object
+      current = { ...current, ...parsed };
+      
+      // Update visual builder
+      els.jsonBuilderContainer.classList.add("hidden");
+      els.visualBuilderSteps.classList.remove("hidden");
+      els.editJsonBtn.classList.remove("hidden");
+      
+      renderEditor(); // Re-render the visual UI to reflect changes
+      setSaveStatus("JSON applied! Click Save to confirm.", "ok");
+    } catch (err) {
+      els.jsonBuilderError.textContent = "Invalid JSON: " + err.message;
+    }
+  });
+
   els.importBtn.addEventListener("click", () => els.importFile.click());
   els.importFile.addEventListener("change", onImport);
   els.addSiteBtn.addEventListener("click", onAddSite);
@@ -163,6 +252,14 @@ function bindEvents() {
   els.viewLogsBtn.addEventListener("click", onViewLogs);
   els.clearLogsBtn.addEventListener("click", onClearLogs);
   els.settingsBtn.addEventListener("click", onViewSettings);
+  els.templatesBtn.addEventListener("click", onViewTemplates);
+  els.marketplaceBtn.addEventListener("click", onViewMarketplace);
+
+  els.shareWfBtn.addEventListener("click", onOpenShareModal);
+  els.closeShareModalBtn.addEventListener("click", onCloseShareModal);
+  els.confirmShareBtn.addEventListener("click", onConfirmShare);
+  els.marketplaceSearch.addEventListener("input", onSearchMarketplace);
+  els.marketplaceSort.addEventListener("change", onSortMarketplace);
 
   els.addRevealSiteBtn.addEventListener("click", onAddRevealSite);
   els.newRevealSite.addEventListener("keydown", (e) => {
@@ -410,9 +507,21 @@ function selectWorkflow(id) {
   current = structuredClone(wf);
   els.logsView.classList.add("hidden");
   els.settingsView.classList.add("hidden");
+  els.templatesView.classList.add("hidden");
+  els.marketplaceView.classList.add("hidden");
+  els.viewLogsBtn.classList.remove("active");
+  els.settingsBtn.classList.remove("active");
+  els.templatesBtn.classList.remove("active");
+  els.marketplaceBtn.classList.remove("active");
   document.querySelector(".editor").classList.remove("hidden");
   els.emptyEditor.classList.add("hidden");
   els.form.classList.remove("hidden");
+  
+  // Reset JSON view state
+  els.jsonBuilderContainer.classList.add("hidden");
+  els.visualBuilderSteps.classList.remove("hidden");
+  els.editJsonBtn.classList.remove("hidden");
+
   renderEditor();
   renderList();
   setSaveStatus("");
@@ -1396,6 +1505,12 @@ async function onViewLogs() {
   renderList();
   document.querySelector(".editor").classList.add("hidden");
   els.settingsView.classList.add("hidden");
+  els.templatesView.classList.add("hidden");
+  els.marketplaceView.classList.add("hidden");
+  els.viewLogsBtn.classList.add("active");
+  els.settingsBtn.classList.remove("active");
+  els.templatesBtn.classList.remove("active");
+  els.marketplaceBtn.classList.remove("active");
   els.logsView.classList.remove("hidden");
   await renderLogs();
 }
@@ -1473,6 +1588,12 @@ function onViewSettings() {
   document.querySelector(".editor").classList.add("hidden");
   els.emptyEditor.classList.add("hidden");
   els.logsView.classList.add("hidden");
+  els.templatesView.classList.add("hidden");
+  els.marketplaceView.classList.add("hidden");
+  els.viewLogsBtn.classList.remove("active");
+  els.settingsBtn.classList.add("active");
+  els.templatesBtn.classList.remove("active");
+  els.marketplaceBtn.classList.remove("active");
   els.settingsView.classList.remove("hidden");
 }
 
@@ -1567,4 +1688,396 @@ function onAddRevealSite() {
   els.newRevealSite.value = "";
   saveSettings(extensionSettings);
   renderSettings();
+}
+
+// ---- Templates Gallery ----------------------------------------------------
+
+function onViewTemplates() {
+  current = null;
+  renderList();
+  document.querySelector(".editor").classList.add("hidden");
+  els.emptyEditor.classList.add("hidden");
+  els.logsView.classList.add("hidden");
+  els.settingsView.classList.add("hidden");
+  els.marketplaceView.classList.add("hidden");
+  els.templatesView.classList.remove("hidden");
+  
+  els.viewLogsBtn.classList.remove("active");
+  els.settingsBtn.classList.remove("active");
+  els.templatesBtn.classList.add("active");
+  els.marketplaceBtn.classList.remove("active");
+  
+  renderTemplateFilters();
+  renderTemplates(selectedCategory);
+}
+
+function renderTemplateFilters() {
+  els.templateCategoryFilters.innerHTML = "";
+  
+  const allBtn = document.createElement("button");
+  allBtn.className = "btn btn-sm" + (selectedCategory === "all" ? " btn-primary" : "");
+  allBtn.textContent = "All Templates";
+  allBtn.addEventListener("click", () => {
+    selectedCategory = "all";
+    renderTemplateFilters();
+    renderTemplates("all");
+  });
+  els.templateCategoryFilters.appendChild(allBtn);
+  
+  for (const cat of TEMPLATE_CATEGORIES) {
+    const btn = document.createElement("button");
+    btn.className = "btn btn-sm" + (selectedCategory === cat.id ? " btn-primary" : "");
+    btn.textContent = cat.label;
+    btn.addEventListener("click", () => {
+      selectedCategory = cat.id;
+      renderTemplateFilters();
+      renderTemplates(cat.id);
+    });
+    els.templateCategoryFilters.appendChild(btn);
+  }
+}
+
+function renderTemplates(categoryFilter) {
+  els.templateCards.innerHTML = "";
+  
+  const filtered = categoryFilter === "all" 
+    ? TEMPLATES 
+    : TEMPLATES.filter(t => t.category === categoryFilter);
+    
+  if (filtered.length === 0) {
+    els.templateCards.innerHTML = "<p class='empty'>No templates in this category.</p>";
+    return;
+  }
+    
+  for (const tpl of filtered) {
+    const card = document.createElement("div");
+    card.className = "template-card";
+    
+    const header = document.createElement("div");
+    header.className = "template-card-header";
+    
+    const iconSpan = document.createElement("span");
+    iconSpan.className = "template-card-icon";
+    iconSpan.textContent = tpl.icon || "🤖";
+    
+    const nameSpan = document.createElement("span");
+    nameSpan.className = "template-card-name";
+    nameSpan.textContent = tpl.name;
+    
+    header.appendChild(iconSpan);
+    header.appendChild(nameSpan);
+    
+    const desc = document.createElement("p");
+    desc.className = "template-card-desc";
+    desc.textContent = tpl.description;
+    
+    const meta = document.createElement("div");
+    meta.className = "template-card-meta";
+    const stepCount = tpl.workflow.steps ? tpl.workflow.steps.length : 0;
+    meta.textContent = `${stepCount} step${stepCount === 1 ? "" : "s"}`;
+    
+    const footer = document.createElement("div");
+    footer.className = "template-card-footer";
+    
+    const useBtn = document.createElement("button");
+    useBtn.className = "btn btn-primary btn-sm";
+    useBtn.textContent = "Use Template";
+    useBtn.addEventListener("click", async () => {
+      if (workflows.length >= capabilities.maxWorkflows) {
+        showUpgradeModal();
+        return;
+      }
+      
+      // Clone the template workflow
+      const wf = structuredClone(tpl.workflow);
+      // Give it a fresh unique ID
+      wf.id = "wf_" + Date.now() + "_" + Math.random().toString(36).substr(2, 9);
+      
+      await upsertWorkflow(wf);
+      workflows = await getWorkflows();
+      selectWorkflow(wf.id);
+    });
+    
+    footer.appendChild(useBtn);
+    
+    card.appendChild(header);
+    card.appendChild(desc);
+    card.appendChild(meta);
+    card.appendChild(footer);
+    
+    els.templateCards.appendChild(card);
+  }
+}
+
+// ---- Community Marketplace ------------------------------------------------
+
+const BACKEND_URL = "http://localhost:3000";
+
+let sharedWorkflows = [];
+let marketplaceSearchTimeout = null;
+
+async function onViewMarketplace() {
+  current = null;
+  renderList();
+  document.querySelector(".editor").classList.add("hidden");
+  els.emptyEditor.classList.add("hidden");
+  els.logsView.classList.add("hidden");
+  els.settingsView.classList.add("hidden");
+  els.templatesView.classList.add("hidden");
+  els.marketplaceView.classList.remove("hidden");
+  
+  els.viewLogsBtn.classList.remove("active");
+  els.settingsBtn.classList.remove("active");
+  els.templatesBtn.classList.remove("active");
+  els.marketplaceBtn.classList.add("active");
+  
+  // Clear search field on initial load
+  els.marketplaceSearch.value = "";
+  els.marketplaceSort.value = "recent";
+  
+  await fetchMarketplaceWorkflows();
+}
+
+async function fetchMarketplaceWorkflows() {
+  const query = els.marketplaceSearch.value.trim();
+  const sort = els.marketplaceSort.value;
+  
+  els.marketplaceCards.innerHTML = "<p class='empty'>Loading workflows from Community Hub...</p>";
+  
+  try {
+    const url = new URL(`${BACKEND_URL}/v1/marketplace`);
+    if (query) url.searchParams.set("q", query);
+    if (sort) url.searchParams.set("sort", sort);
+    
+    const res = await fetch(url.toString());
+    const data = await res.json();
+    
+    if (data && data.success) {
+      sharedWorkflows = data.workflows || [];
+      renderMarketplace();
+    } else {
+      els.marketplaceCards.innerHTML = `<p class='empty' style='color: red;'>Failed to load: ${data?.error || "Unknown error"}</p>`;
+    }
+  } catch (error) {
+    console.error("Fetch marketplace error:", error);
+    els.marketplaceCards.innerHTML = "<p class='empty' style='color: red;'>Failed to connect to Community Hub server. Make sure the backend server is running.</p>";
+  }
+}
+
+function renderMarketplace() {
+  els.marketplaceCards.innerHTML = "";
+  
+  if (sharedWorkflows.length === 0) {
+    els.marketplaceCards.innerHTML = "<p class='empty'>No shared workflows found. Be the first to share one!</p>";
+    return;
+  }
+  
+  sharedWorkflows.forEach(item => {
+    const card = document.createElement("div");
+    card.className = "template-card";
+    
+    const header = document.createElement("div");
+    header.className = "template-card-header";
+    
+    const iconSpan = document.createElement("span");
+    iconSpan.className = "template-card-icon";
+    iconSpan.textContent = "🌐";
+    
+    const nameSpan = document.createElement("span");
+    nameSpan.className = "template-card-name";
+    nameSpan.textContent = item.name;
+    
+    header.appendChild(iconSpan);
+    header.appendChild(nameSpan);
+    
+    const author = document.createElement("div");
+    author.className = "template-card-author";
+    author.textContent = `by ${item.author_name || "Anonymous"}`;
+    
+    const desc = document.createElement("p");
+    desc.className = "template-card-desc";
+    desc.textContent = item.description || "No description provided.";
+    
+    const meta = document.createElement("div");
+    meta.className = "marketplace-meta-info";
+    
+    let parsedData = null;
+    let stepCount = 0;
+    try {
+      parsedData = JSON.parse(item.workflow_data);
+      stepCount = parsedData.steps ? parsedData.steps.length : 0;
+    } catch (_) {}
+    
+    const stepsSpan = document.createElement("span");
+    stepsSpan.className = "template-card-meta";
+    stepsSpan.textContent = `${stepCount} step${stepCount === 1 ? "" : "s"}`;
+    
+    const likesSpan = document.createElement("span");
+    likesSpan.className = "marketplace-stat";
+    likesSpan.innerHTML = `❤️ <span class="like-count">${item.likes}</span>`;
+    
+    // Check if user already liked it in this session
+    const isLiked = sessionStorage.getItem(`liked_${item.id}`);
+    if (isLiked) likesSpan.classList.add("liked");
+    
+    likesSpan.addEventListener("click", async (e) => {
+      e.stopPropagation();
+      if (sessionStorage.getItem(`liked_${item.id}`)) return; // already liked
+      
+      try {
+        const res = await fetch(`${BACKEND_URL}/v1/marketplace/like/${item.id}`, { method: "POST" });
+        const data = await res.json();
+        if (data && data.success) {
+          sessionStorage.setItem(`liked_${item.id}`, "true");
+          likesSpan.classList.add("liked");
+          item.likes++;
+          likesSpan.querySelector(".like-count").textContent = item.likes;
+        }
+      } catch (err) {
+        console.error("Like error:", err);
+      }
+    });
+    
+    const downloadsSpan = document.createElement("span");
+    downloadsSpan.className = "marketplace-stat";
+    downloadsSpan.style.cursor = "default";
+    downloadsSpan.innerHTML = `📥 ${item.downloads}`;
+    
+    meta.appendChild(stepsSpan);
+    meta.appendChild(likesSpan);
+    meta.appendChild(downloadsSpan);
+    
+    const footer = document.createElement("div");
+    footer.className = "template-card-footer";
+    
+    const importBtn = document.createElement("button");
+    importBtn.className = "btn btn-primary btn-sm";
+    importBtn.textContent = "Import Workflow";
+    importBtn.addEventListener("click", async () => {
+      if (workflows.length >= capabilities.maxWorkflows) {
+        showUpgradeModal();
+        return;
+      }
+      
+      try {
+        // Register download
+        fetch(`${BACKEND_URL}/v1/marketplace/download/${item.id}`, { method: "POST" }).catch(() => {});
+        
+        // Parse workflow data
+        if (!parsedData) throw new Error("Invalid workflow data format.");
+        
+        // Clone and assign unique ID
+        const wf = structuredClone(parsedData);
+        wf.id = "wf_" + Date.now() + "_" + Math.random().toString(36).substr(2, 9);
+        
+        // Append " (Community)" to distinguish
+        wf.name = wf.name + " (Community)";
+        
+        await upsertWorkflow(wf);
+        workflows = await getWorkflows();
+        selectWorkflow(wf.id);
+        
+        setSaveStatus(`Imported community workflow "${wf.name}".`, "ok");
+      } catch (err) {
+        alert("Failed to import workflow: " + err.message);
+      }
+    });
+    
+    footer.appendChild(importBtn);
+    
+    card.appendChild(header);
+    card.appendChild(author);
+    card.appendChild(desc);
+    card.appendChild(meta);
+    card.appendChild(footer);
+    
+    els.marketplaceCards.appendChild(card);
+  });
+}
+
+function onSearchMarketplace() {
+  if (marketplaceSearchTimeout) clearTimeout(marketplaceSearchTimeout);
+  marketplaceSearchTimeout = setTimeout(() => {
+    fetchMarketplaceWorkflows();
+  }, 300);
+}
+
+function onSortMarketplace() {
+  fetchMarketplaceWorkflows();
+}
+
+function onOpenShareModal() {
+  if (!current) {
+    alert("Please select or save a workflow first.");
+    return;
+  }
+  
+  els.shareModal.style.display = "flex";
+  els.shareModal.classList.remove("hidden");
+  
+  // Pre-fill fields
+  els.shareAuthorInput.value = localStorage.getItem("to_share_author") || "";
+  els.shareDescInput.value = "";
+  els.shareModalError.textContent = "";
+}
+
+function onCloseShareModal() {
+  els.shareModal.style.display = "none";
+  els.shareModal.classList.add("hidden");
+}
+
+async function onConfirmShare() {
+  if (!current) return;
+  
+  const authorName = els.shareAuthorInput.value.trim() || "Anonymous";
+  const description = els.shareDescInput.value.trim();
+  
+  // Save author name locally for convenience next time
+  localStorage.setItem("to_share_author", authorName);
+  
+  els.shareModalError.textContent = "Uploading workflow...";
+  els.shareModalError.style.color = "var(--primary)";
+  
+  // Build a safe clone of the current workflow to share (strip local state/memory banks)
+  const wfToShare = structuredClone(current);
+  delete wfToShare.id; // Server will assign a new share ID
+  delete wfToShare._parsedSites;
+  
+  // Strip execution statuses if any
+  if (wfToShare.steps) {
+    const cleanSteps = (steps) => {
+      steps.forEach(s => {
+        delete s.status;
+        delete s.error;
+        if (s.steps) cleanSteps(s.steps);
+      });
+    };
+    cleanSteps(wfToShare.steps);
+  }
+  
+  try {
+    const res = await fetch(`${BACKEND_URL}/v1/marketplace/share`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        name: current.name,
+        description,
+        authorName,
+        workflowData: wfToShare
+      })
+    });
+    
+    const data = await res.json();
+    if (data && data.success) {
+      onCloseShareModal();
+      setSaveStatus(`Successfully shared "${current.name}" to the Community Hub!`, "ok");
+    } else {
+      els.shareModalError.textContent = `Share failed: ${data?.error || "Unknown error"}`;
+      els.shareModalError.style.color = "red";
+    }
+  } catch (err) {
+    console.error("Share error:", err);
+    els.shareModalError.textContent = "Failed to connect to the Community Hub server.";
+    els.shareModalError.style.color = "red";
+  }
 }

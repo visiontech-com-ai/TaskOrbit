@@ -258,6 +258,96 @@ app.post('/v1/admin/license/reset-device', requireAdmin, async (req, res) => {
   }
 });
 
+// 6. PUBLIC: Get all shared workflows (Marketplace list)
+app.get('/v1/marketplace', async (req, res) => {
+  const { q, sort } = req.query;
+  let sql = 'SELECT id, name, description, author_name, downloads, likes, created_at, workflow_data FROM shared_workflows';
+  const params = [];
+
+  if (q && q.trim()) {
+    sql += ' WHERE name LIKE ? OR description LIKE ?';
+    const wild = `%${q.trim()}%`;
+    params.push(wild, wild);
+  }
+
+  if (sort === 'likes') {
+    sql += ' ORDER BY likes DESC, created_at DESC';
+  } else if (sort === 'downloads') {
+    sql += ' ORDER BY downloads DESC, created_at DESC';
+  } else {
+    sql += ' ORDER BY created_at DESC';
+  }
+
+  try {
+    const list = await db.all(sql, params);
+    res.json({ success: true, workflows: list });
+  } catch (error) {
+    console.error('Marketplace fetch error:', error);
+    res.status(500).json({ success: false, error: 'Failed to fetch shared workflows.' });
+  }
+});
+
+// 7. PUBLIC: Share a workflow
+app.post('/v1/marketplace/share', async (req, res) => {
+  const { name, description, authorName, workflowData } = req.body;
+
+  if (!name || !name.trim()) {
+    return res.status(400).json({ success: false, error: 'Workflow name is required.' });
+  }
+  if (!workflowData || typeof workflowData !== 'object') {
+    return res.status(400).json({ success: false, error: 'Workflow data is required.' });
+  }
+
+  try {
+    const id = 'share_' + Date.now().toString(36) + '_' + Math.random().toString(36).substring(2, 8);
+    const author = authorName && authorName.trim() ? authorName.trim() : 'Anonymous';
+    const desc = description ? description.trim() : '';
+    const dataStr = JSON.stringify(workflowData);
+
+    await db.run(
+      'INSERT INTO shared_workflows (id, name, description, author_name, workflow_data, created_at) VALUES (?, ?, ?, ?, ?, ?)',
+      [id, name.trim(), desc, author, dataStr, Date.now()]
+    );
+
+    res.json({ success: true, message: 'Workflow shared successfully!', sharedId: id });
+  } catch (error) {
+    console.error('Marketplace share error:', error);
+    res.status(500).json({ success: false, error: 'Failed to share workflow.' });
+  }
+});
+
+// 8. PUBLIC: Like a workflow
+app.post('/v1/marketplace/like/:id', async (req, res) => {
+  const { id } = req.params;
+  try {
+    const wf = await db.get('SELECT id FROM shared_workflows WHERE id = ?', [id]);
+    if (!wf) {
+      return res.status(404).json({ success: false, error: 'Workflow not found.' });
+    }
+    await db.run('UPDATE shared_workflows SET likes = likes + 1 WHERE id = ?', [id]);
+    res.json({ success: true, message: 'Workflow liked!' });
+  } catch (error) {
+    console.error('Marketplace like error:', error);
+    res.status(500).json({ success: false, error: 'Failed to like workflow.' });
+  }
+});
+
+// 9. PUBLIC: Record download count
+app.post('/v1/marketplace/download/:id', async (req, res) => {
+  const { id } = req.params;
+  try {
+    const wf = await db.get('SELECT id FROM shared_workflows WHERE id = ?', [id]);
+    if (!wf) {
+      return res.status(404).json({ success: false, error: 'Workflow not found.' });
+    }
+    await db.run('UPDATE shared_workflows SET downloads = downloads + 1 WHERE id = ?', [id]);
+    res.json({ success: true, message: 'Download registered.' });
+  } catch (error) {
+    console.error('Marketplace download register error:', error);
+    res.status(500).json({ success: false, error: 'Failed to register download.' });
+  }
+});
+
 // Initialize database schema and start server
 db.initDb().then(() => {
   app.listen(PORT, () => {

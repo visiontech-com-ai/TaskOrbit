@@ -4,6 +4,8 @@
   if (window.__wfExecutorInstalled) return;
   window.__wfExecutorInstalled = true;
   window.__vf_emergency_stop = false;
+  window.__debugMode = false;
+  let __debugResolve = null; // Resolve function for the debug pause promise
 
   // ---- Network Interceptor Injection ----------------------------------------
   (function injectNetworkInterceptor() {
@@ -189,6 +191,44 @@
     const el = document.getElementById("__to_smart_toast_text");
     if (el) el.textContent = text;
   }
+
+  // ---- Debug Highlight Helpers -----------------------------------------------
+
+  function highlightElement(el) {
+    if (!el || !el.style) return;
+    el.setAttribute("data-to-debug-highlight", "true");
+    el.style.setProperty("outline", "3px solid #2563eb", "important");
+    el.style.setProperty("outline-offset", "2px", "important");
+    el.style.setProperty("box-shadow", "0 0 0 6px rgba(37,99,235,0.18)", "important");
+  }
+
+  function removeHighlight() {
+    const el = document.querySelector('[data-to-debug-highlight]');
+    if (!el) return;
+    el.removeAttribute("data-to-debug-highlight");
+    el.style.removeProperty("outline");
+    el.style.removeProperty("outline-offset");
+    el.style.removeProperty("box-shadow");
+  }
+
+  function waitForDebugResume() {
+    return new Promise((resolve) => {
+      __debugResolve = resolve;
+    });
+  }
+  // Step type labels for debug mode messages
+  const STEP_TYPES_MAP = {
+    click: "Click element", focus: "Focus element", check: "Check / uncheck",
+    setText: "Type text", clearField: "Clear field", selectOption: "Select option",
+    pressKey: "Press Key", waitFor: "Wait for element", waitVisible: "Wait visible",
+    waitInvisible: "Wait invisible", wait: "Wait (delay)", waitNetworkIdle: "Wait Network Idle",
+    navigate: "Navigate to URL", screenshot: "Take Screenshot", extractText: "Extract Text",
+    calculateMath: "Calculate Math", exportData: "Export Variables", runWorkflow: "Run Workflow",
+    sendWebhook: "Send Webhook", append_row: "Save to Table Row", export_table: "Export Table as CSV",
+    load_csv: "Load CSV Data", mark_row_processed: "Mark Row Processed",
+    if_exists: "If Element Exists", if_not_exists: "If Element Not Exists",
+    if_variable: "If Variable", else: "Else", end_if: "End If", loop: "Loop Container"
+  };
 
   function queryEl(step) {
     const selector = step.selector;
@@ -1367,6 +1407,7 @@
         }
 
         await runStep(step, window.__variables);
+        removeHighlight();
 
         if (executionStack.length === 1) {
           updateProgressStep(i, "ok");
@@ -1374,6 +1415,33 @@
 
         frame.index = i + 1;
         await saveExecutionState();
+
+        // ---- Debug pause point ----
+        if (window.__debugMode && !window.__vf_emergency_stop) {
+          const nextStep = frame.steps[frame.index] || null;
+          // Highlight the NEXT element before pausing
+          if (nextStep && nextStep.selector) {
+            try {
+              const nextEl = queryEl(nextStep);
+              if (nextEl) {
+                highlightElement(nextEl);
+                nextEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+              }
+            } catch (_) {}
+          }
+          // Send pause info to popup via background
+          chrome.runtime.sendMessage({
+            type: "debugPause",
+            stepIndex: i,
+            totalSteps: frame.steps.length,
+            completedStep: { type: step.type, name: step.name || STEP_TYPES_MAP[step.type] || step.type, index: i },
+            nextStep: nextStep ? { type: nextStep.type, name: nextStep.name || STEP_TYPES_MAP[nextStep.type] || nextStep.type, index: frame.index } : null,
+            variables: { ...window.__variables },
+            workflowName: window.__wfName
+          }).catch(() => {});
+          // Wait for resume signal
+          await waitForDebugResume();
+        }
       }
     } catch (e) {
       if (executionStack.length > 0) {
@@ -1522,8 +1590,55 @@
       executeStack(true).then(sendResponse);
       return true; // async
     }
+    if (msg && msg.type === "debugSteps") {
+      window.__wfId = msg.workflowId || "unknown";
+      window.__wfName = msg.workflowName || "Unknown Workflow";
+      window.__tabId = msg.tabId;
+      window.__debugMode = true;
+      // Send initial pause with first step info before execution starts
+      const firstStep = (msg.steps || [])[0];
+      if (firstStep) {
+        try {
+          const el = queryEl(firstStep);
+          if (el) { highlightElement(el); el.scrollIntoView({ behavior: 'smooth', block: 'center' }); }
+        } catch (_) {}
+      }
+      chrome.runtime.sendMessage({
+        type: "debugPause",
+        stepIndex: -1,
+        totalSteps: (msg.steps || []).length,
+        completedStep: null,
+        nextStep: firstStep ? { type: firstStep.type, name: firstStep.name || STEP_TYPES_MAP[firstStep.type] || firstStep.type, index: 0 } : null,
+        variables: msg.variables || {},
+        workflowName: window.__wfName
+      }).catch(() => {});
+      // Wait for the first resume before starting
+      waitForDebugResume().then(() => {
+        executeSteps(msg.steps || [], msg.variables || {}, msg.maxRetries, true).then((result) => {
+          removeHighlight();
+          window.__debugMode = false;
+          chrome.runtime.sendMessage({ type: "debugFinished", ok: result.ok, error: result.error }).catch(() => {});
+          sendResponse(result);
+        });
+      });
+      return true; // async
+    }
+    if (msg && msg.type === "debugResume") {
+      if (msg.runAll) {
+        window.__debugMode = false;
+        removeHighlight();
+      }
+      if (__debugResolve) {
+        __debugResolve();
+        __debugResolve = null;
+      }
+      sendResponse({ ok: true });
+      return false;
+    }
     if (msg && msg.type === "emergencyStop") {
       window.__vf_emergency_stop = true;
+      window.__debugMode = false;
+      removeHighlight();
       removeProgressOverlay();
       sendResponse({ ok: true });
       return false;
