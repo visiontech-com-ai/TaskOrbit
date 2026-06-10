@@ -130,7 +130,8 @@ async function runWorkflow(workflowId, tabId, variables = null) {
         workflowName: workflow.name,
         steps: workflow.steps,
         variables: variables || {},
-        maxRetries: workflow.maxRetries !== undefined ? workflow.maxRetries : 3
+        maxRetries: workflow.maxRetries !== undefined ? workflow.maxRetries : 3,
+        tabId: tab.id
       });
       return result || { ok: true, results: [] };
     } catch (e) {
@@ -147,13 +148,23 @@ async function runWorkflow(workflowId, tabId, variables = null) {
     if (fail) errorMsg = fail.error;
   }
 
-  await addLog({
-    workflowId: workflow.id,
-    workflowName: workflow.name,
-    durationMs,
-    status: result.ok ? "success" : "error",
-    errorMessage: errorMsg || ""
-  }).catch(() => {}); // fire and forget
+  // Only log if the workflow failed to start/inject/find. If it ran, the executor logs when finished.
+  const isEarlyError = !result.ok && (
+    errorMsg.startsWith("Could not inject") ||
+    errorMsg.startsWith("No active tab") ||
+    errorMsg.startsWith("Workflow not found") ||
+    errorMsg.includes("limits workflows")
+  );
+
+  if (isEarlyError) {
+    await addLog({
+      workflowId: workflow.id,
+      workflowName: workflow.name,
+      durationMs,
+      status: "error",
+      errorMessage: errorMsg || ""
+    }).catch(() => {});
+  }
 
   return result;
 }
@@ -264,6 +275,40 @@ chrome.tabs.onUpdated.addListener(async (tabId, changeInfo, tab) => {
   const hasAccess = await hasHostAccess(tab.url);
   if (!hasAccess) return;
 
+  // Resume workflow if saved state exists
+  const stateKey = "taskorbit_state_" + tabId;
+  try {
+    const data = await chrome.storage.local.get(stateKey);
+    const savedState = data[stateKey];
+    if (savedState) {
+      console.log(`[TaskOrbit] Resuming workflow ${savedState.workflowName} on tab ${tabId}`);
+      await chrome.scripting.executeScript({
+        target: { tabId },
+        files: ["content/executor.js"]
+      });
+      chrome.tabs.sendMessage(tabId, {
+        type: "resumeWorkflow",
+        state: savedState,
+        tabId: tabId
+      }).catch(err => {
+        const isChannelClosed = err && err.message && (
+          err.message.includes("message channel closed") || 
+          err.message.includes("message port closed") ||
+          err.message.includes("Could not establish connection") ||
+          err.message.includes("back/forward cache")
+        );
+        if (isChannelClosed) {
+          console.log("[TaskOrbit] Connection closed or pending navigation, state is preserved in storage.");
+        } else {
+          console.error("[TaskOrbit] Failed to send resumeWorkflow message:", err);
+        }
+      });
+      return; // Skip normal auto-run/shortcut setup for this load since we are resuming
+    }
+  } catch (e) {
+    console.error("[TaskOrbit] Error checking state for resume:", e);
+  }
+
   const workflows = await getWorkflows();
   const capabilities = await getCapabilities();
 
@@ -291,6 +336,11 @@ chrome.tabs.onUpdated.addListener(async (tabId, changeInfo, tab) => {
       // Injection may fail on restricted pages; ignore.
     }
   }
+});
+
+chrome.tabs.onRemoved.addListener(async (tabId) => {
+  const stateKey = "taskorbit_state_" + tabId;
+  await chrome.storage.local.remove(stateKey);
 });
 
 // ---- Screenshots & Downloads ----------------------------------------------

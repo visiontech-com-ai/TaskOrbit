@@ -793,10 +793,82 @@
         let cfg = { key: "Enter", ctrl: false, alt: false, shift: false, meta: false };
         try { if (step.value) cfg = { ...cfg, ...JSON.parse(step.value) }; } catch {}
 
-        const target = step.selector ? queryEl(step) : document.activeElement || document.body;
+        let target = null;
+        if (step.selector) {
+          target = await waitForInteractable(step, 5000);
+          if (!target) throw new Error("Element not found for key press: " + step.selector);
+        } else {
+          target = document.activeElement || document.body;
+        }
+
+        if (target && typeof target.focus === "function") {
+          target.focus();
+        }
+
+        const KEY_CODES = {
+          "Enter": 13,
+          "Tab": 9,
+          "Escape": 27,
+          "Backspace": 8,
+          "Delete": 46,
+          "Space": 32,
+          " ": 32,
+          "ArrowUp": 38,
+          "ArrowDown": 40,
+          "ArrowLeft": 37,
+          "ArrowRight": 39,
+          "Home": 36,
+          "End": 35,
+          "PageUp": 33,
+          "PageDown": 34
+        };
+        
+        const KEY_CODES_CODE = {
+          "Enter": "Enter",
+          "Tab": "Tab",
+          "Escape": "Escape",
+          "Backspace": "Backspace",
+          "Delete": "Delete",
+          "Space": "Space",
+          " ": "Space",
+          "ArrowUp": "ArrowUp",
+          "ArrowDown": "ArrowDown",
+          "ArrowLeft": "ArrowLeft",
+          "ArrowRight": "ArrowRight",
+          "Home": "Home",
+          "End": "End",
+          "PageUp": "PageUp",
+          "PageDown": "PageDown"
+        };
+
+        const getKeyCode = (key) => {
+          if (!key) return 0;
+          if (KEY_CODES[key] !== undefined) return KEY_CODES[key];
+          if (key.length === 1) {
+            return key.toUpperCase().charCodeAt(0);
+          }
+          return 0;
+        };
+
+        const getCode = (key) => {
+          if (!key) return "";
+          if (KEY_CODES_CODE[key] !== undefined) return KEY_CODES_CODE[key];
+          if (key.length === 1) {
+            const char = key.toUpperCase();
+            if (char >= "A" && char <= "Z") return "Key" + char;
+            if (char >= "0" && char <= "9") return "Digit" + char;
+          }
+          return key;
+        };
+
+        const keyCodeVal = getKeyCode(cfg.key);
+        const codeVal = getCode(cfg.key);
+
         const init = {
           key: cfg.key,
-          code: cfg.key,
+          code: codeVal,
+          keyCode: keyCodeVal,
+          which: keyCodeVal,
           ctrlKey: !!cfg.ctrl,
           altKey: !!cfg.alt,
           shiftKey: !!cfg.shift,
@@ -804,8 +876,54 @@
           bubbles: true,
           cancelable: true
         };
-        for (const evtType of ["keydown", "keypress", "keyup"]) {
-          (target || document.body).dispatchEvent(new KeyboardEvent(evtType, init));
+
+        const targetEl = target || document.body;
+
+        let preventDefaultCalled = false;
+        
+        const keydownEvt = new KeyboardEvent("keydown", init);
+        if (!targetEl.dispatchEvent(keydownEvt)) {
+          preventDefaultCalled = true;
+        }
+
+        const keypressInit = { ...init };
+        if (cfg.key === "Enter") {
+          keypressInit.charCode = 13;
+          keypressInit.keyCode = 13;
+          keypressInit.which = 13;
+        } else if (cfg.key.length === 1) {
+          keypressInit.charCode = cfg.key.charCodeAt(0);
+          keypressInit.keyCode = cfg.key.charCodeAt(0);
+          keypressInit.which = cfg.key.charCodeAt(0);
+        }
+        
+        const keypressEvt = new KeyboardEvent("keypress", keypressInit);
+        if (!targetEl.dispatchEvent(keypressEvt)) {
+          preventDefaultCalled = true;
+        }
+
+        const keyupEvt = new KeyboardEvent("keyup", init);
+        targetEl.dispatchEvent(keyupEvt);
+
+        if (cfg.key === "Enter" && !preventDefaultCalled && target) {
+          const isButtonOrLink = target.tagName === "BUTTON" || 
+                                 target.tagName === "A" || 
+                                 (target.tagName === "INPUT" && ["button", "submit", "reset", "image"].includes(target.type));
+          
+          if (isButtonOrLink) {
+            target.click();
+          } else if (target.form) {
+            const submitBtn = target.form.querySelector('input[type="submit"], button:not([type="button"]):not([type="reset"])');
+            if (submitBtn) {
+              submitBtn.click();
+            } else {
+              try {
+                target.form.requestSubmit();
+              } catch (err) {
+                target.form.submit();
+              }
+            }
+          }
         }
         return;
       }
@@ -833,69 +951,299 @@
     }
   }
 
-  async function executeSteps(steps, variables, maxRetries = 3, topLevel = false) {
+  let executionStack = [];
+
+  async function saveExecutionState() {
+    if (!window.__tabId) return;
+    const state = {
+      workflowId: window.__wfId,
+      workflowName: window.__wfName,
+      maxRetries: MAX_RETRIES,
+      variables: window.__variables,
+      dataTable: window.__to_dataTable,
+      dataRows: window.__to_dataRows,
+      startTime: window.__wfStartTime,
+      stack: executionStack.map(frame => ({
+        steps: frame.steps,
+        index: frame.index,
+        variables: frame.variables,
+        skipDepth: frame.skipDepth,
+        loopInfo: frame.loopInfo ? {
+          parentIndex: frame.loopInfo.parentIndex,
+          mode: frame.loopInfo.mode,
+          iterations: frame.loopInfo.iterations,
+          count: frame.loopInfo.count,
+          selector: frame.loopInfo.selector,
+          selectorType: frame.loopInfo.selectorType
+        } : null
+      })),
+      timestamp: Date.now()
+    };
+    const key = "taskorbit_state_" + window.__tabId;
+    await chrome.storage.local.set({ [key]: state });
+  }
+
+  async function clearExecutionState() {
+    if (!window.__tabId) return;
+    const key = "taskorbit_state_" + window.__tabId;
+    await chrome.storage.local.remove(key);
+  }
+
+  async function initLoopFrame(step, parentFrame) {
+    const mergedVars = { ...window.__variables, ...parentFrame.variables };
+
+    let loopFrame = {
+      steps: step.steps || [],
+      index: 0,
+      variables: {},
+      skipDepth: 0,
+      loopInfo: {
+        parentIndex: parentFrame.index,
+        mode: step.mode,
+        iterations: 0,
+        count: 0,
+        selector: step.selector,
+        selectorType: step.selectorType
+      }
+    };
+
+    if (step.mode === "repeat") {
+      const countStr = typeof step.count === "string" ? replaceVars(step.count, mergedVars) : step.count;
+      const count = parseInt(countStr, 10) || 1;
+      if (count <= 0) return null;
+      loopFrame.loopInfo.count = count;
+      prepareLoopIterationVariables(loopFrame);
+      return loopFrame;
+    } 
+    
+    if (step.mode === "whileExists") {
+      const el = queryEl(step);
+      if (!el) return null;
+      prepareLoopIterationVariables(loopFrame);
+      return loopFrame;
+    } 
+    
+    if (step.mode === "forEach") {
+      const els = queryEls(step);
+      const count = els.length;
+      if (count === 0) return null;
+      els.forEach((el, idx) => el.setAttribute("data-to-loop-idx", idx + 1));
+      loopFrame.loopInfo.count = count;
+      prepareLoopIterationVariables(loopFrame);
+      return loopFrame;
+    } 
+    
+    if (step.mode === "forEachRow") {
+      const rows = window.__to_dataRows || [];
+      const count = rows.length;
+      if (count === 0) return null;
+      
+      const memKey = `memory_bank_${window.__wfId}`;
+      const memData = await chrome.storage.local.get(memKey);
+      const bank = memData[memKey] || [];
+      
+      let firstUnprocessed = 0;
+      while (firstUnprocessed < count) {
+        const rowData = rows[firstUnprocessed] || {};
+        const hashStr = await hashRow(rowData);
+        if (!bank.includes(hashStr)) {
+          break;
+        }
+        firstUnprocessed++;
+      }
+      
+      if (firstUnprocessed >= count) return null;
+      
+      loopFrame.loopInfo.iterations = firstUnprocessed;
+      loopFrame.loopInfo.count = count;
+      prepareLoopIterationVariables(loopFrame);
+      return loopFrame;
+    }
+
+    return null;
+  }
+
+  async function isLoopFinished(loopFrame) {
+    const maxIterations = 100;
+    const loopInfo = loopFrame.loopInfo;
+
+    if (loopInfo.iterations >= maxIterations) return true;
+
+    if (loopInfo.mode === "repeat") {
+      return loopInfo.iterations >= loopInfo.count;
+    }
+
+    if (loopInfo.mode === "whileExists") {
+      const el = queryEl({ selector: loopInfo.selector, selectorType: loopInfo.selectorType });
+      return !el;
+    }
+
+    if (loopInfo.mode === "forEach") {
+      const els = queryEls({ selector: loopInfo.selector, selectorType: loopInfo.selectorType });
+      els.forEach((el, idx) => el.setAttribute("data-to-loop-idx", idx + 1));
+      return loopInfo.iterations >= els.length;
+    }
+
+    if (loopInfo.mode === "forEachRow") {
+      const rows = window.__to_dataRows || [];
+      const count = rows.length;
+      if (loopInfo.iterations >= count) return true;
+      
+      const memKey = `memory_bank_${window.__wfId}`;
+      const memData = await chrome.storage.local.get(memKey);
+      const bank = memData[memKey] || [];
+      
+      const rowData = rows[loopInfo.iterations] || {};
+      const hashStr = await hashRow(rowData);
+      if (bank.includes(hashStr)) {
+        while (loopInfo.iterations < count) {
+          const nextRow = rows[loopInfo.iterations] || {};
+          const nextHash = await hashRow(nextRow);
+          if (!bank.includes(nextHash)) {
+            break;
+          }
+          loopInfo.iterations++;
+        }
+      }
+      return loopInfo.iterations >= count;
+    }
+
+    return true;
+  }
+
+  function prepareLoopIterationVariables(loopFrame) {
+    const loopInfo = loopFrame.loopInfo;
+    const it = loopInfo.iterations;
+
+    if (loopInfo.mode === "forEachRow") {
+      const rows = window.__to_dataRows || [];
+      const rowData = rows[it] || {};
+      loopFrame.variables = {
+        ...rowData,
+        loop_index: it,
+        loop_index_1: it + 1
+      };
+    } else {
+      loopFrame.variables = {
+        loop_index: it,
+        loop_index_1: it + 1
+      };
+    }
+  }
+
+  async function hashRow(rowData) {
+    const rowStr = JSON.stringify(rowData);
+    const msgUint8 = new TextEncoder().encode(rowStr);
+    const hashBuffer = await crypto.subtle.digest('SHA-256', msgUint8);
+    const hashArray = Array.from(new Uint8Array(hashBuffer));
+    return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+  }
+
+  async function executeStack(topLevel = false) {
     if (topLevel) {
       window.__vf_emergency_stop = false;
-      window.__to_dataTable = [];
-      window.__to_dataRows = [];
-    }
-
-    MAX_RETRIES = maxRetries;
-    const results = [];
-    let skipDepth = 0;
-
-    if (topLevel) {
-      createProgressOverlay(steps);
-      showSmartActivationToast();
-    }
-
-    for (let i = 0; i < steps.length; i++) {
-      if (window.__vf_emergency_stop) {
-        if (topLevel) removeProgressOverlay();
-        return { ok: false, failedAt: i, error: "Emergency Stop triggered by user." };
-      }
-
-      // Create a shallow copy so we don't mutate the original step template
-      const step = { ...steps[i] };
-      
-      step.selector = replaceVars(step.selector, variables);
-      if (step.type !== "extractText") {
-        step.value = replaceVars(step.value, variables);
-      }
-      if (typeof step.delayMs === "string") {
-        step.delayMs = replaceVars(step.delayMs, variables);
-      }
-      if (typeof step.count === "string") {
-        step.count = replaceVars(step.count, variables);
-      }
-      
-      if (skipDepth > 0) {
-        if (step.type.startsWith("if_")) {
-          skipDepth++;
-        } else if (step.type === "end_if") {
-          skipDepth--;
-        } else if (step.type === "else" && skipDepth === 1) {
-          skipDepth = 0; // true branch was skipped, so execute false branch
+      if (executionStack.length > 0) {
+        createProgressOverlay(executionStack[0].steps);
+        showSmartActivationToast();
+        const topFrame = executionStack[0];
+        for (let idx = 0; idx < topFrame.index; idx++) {
+          updateProgressStep(idx, "ok");
         }
-        if (topLevel) updateProgressStep(i, "skipped");
-        results.push({ index: i, type: step.type, ok: true, skipped: true });
-        continue;
       }
-      
-      try {
+    }
+
+    try {
+      while (executionStack.length > 0 && !window.__vf_emergency_stop) {
+        const frame = executionStack[executionStack.length - 1];
+        const steps = frame.steps;
+        const i = frame.index;
+
+        if (i >= steps.length) {
+          if (frame.loopInfo) {
+            const it = frame.loopInfo.iterations;
+            const mode = frame.loopInfo.mode;
+            console.log(`[TaskOrbit] Loop '${mode}' iteration ${it + 1} completed.`);
+            chrome.runtime.sendMessage({
+              type: "addLog",
+              entry: {
+                workflowId: window.__wfId,
+                workflowName: window.__wfName,
+                durationMs: 0,
+                status: "success",
+                errorMessage: `Loop '${mode}' item ${it + 1} completed.`
+              }
+            }).catch(() => {});
+
+            frame.loopInfo.iterations++;
+            const finished = await isLoopFinished(frame);
+            if (!finished) {
+              frame.index = 0;
+              prepareLoopIterationVariables(frame);
+              await saveExecutionState();
+              continue;
+            }
+          }
+
+          executionStack.pop();
+          if (executionStack.length > 0) {
+            const parentFrame = executionStack[executionStack.length - 1];
+            parentFrame.index++;
+            await saveExecutionState();
+          }
+          continue;
+        }
+
+        const rawStep = steps[i];
+        const step = { ...rawStep };
+        
+        const mergedVars = { ...window.__variables, ...frame.variables };
+        step.selector = replaceVars(step.selector, mergedVars);
+        if (step.type !== "extractText") {
+          step.value = replaceVars(step.value, mergedVars);
+        }
+        if (typeof step.delayMs === "string") {
+          step.delayMs = replaceVars(step.delayMs, mergedVars);
+        }
+        if (typeof step.count === "string") {
+          step.count = replaceVars(step.count, mergedVars);
+        }
+
+        if (frame.skipDepth > 0) {
+          if (step.type.startsWith("if_")) {
+            frame.skipDepth++;
+          } else if (step.type === "end_if") {
+            frame.skipDepth--;
+          } else if (step.type === "else" && frame.skipDepth === 1) {
+            frame.skipDepth = 0;
+          }
+          
+          if (executionStack.length === 1) {
+            updateProgressStep(i, "skipped");
+          }
+          frame.index++;
+          await saveExecutionState();
+          continue;
+        }
+
         if (step.type === "if_exists") {
           const el = queryEl(step);
-          if (!el) skipDepth = 1;
-          if (topLevel) updateProgressStep(i, el ? "ok" : "skipped");
-          results.push({ index: i, type: step.type, ok: true });
+          if (!el) frame.skipDepth = 1;
+          if (executionStack.length === 1) {
+            updateProgressStep(i, el ? "ok" : "skipped");
+          }
+          frame.index++;
+          await saveExecutionState();
           continue;
         }
         
         if (step.type === "if_not_exists") {
           const el = queryEl(step);
-          if (el) skipDepth = 1;
-          if (topLevel) updateProgressStep(i, !el ? "ok" : "skipped");
-          results.push({ index: i, type: step.type, ok: true });
+          if (el) frame.skipDepth = 1;
+          if (executionStack.length === 1) {
+            updateProgressStep(i, !el ? "ok" : "skipped");
+          }
+          frame.index++;
+          await saveExecutionState();
           continue;
         }
 
@@ -918,166 +1266,181 @@
           else if (op === "includes") truthy = String(left).includes(String(right));
           else if (op === "not_includes") truthy = !String(left).includes(String(right));
           
-          if (!truthy) skipDepth = 1;
-          if (topLevel) updateProgressStep(i, truthy ? "ok" : "skipped");
-          results.push({ index: i, type: step.type, ok: true });
+          if (!truthy) frame.skipDepth = 1;
+          if (executionStack.length === 1) {
+            updateProgressStep(i, truthy ? "ok" : "skipped");
+          }
+          frame.index++;
+          await saveExecutionState();
           continue;
         }
 
         if (step.type === "else") {
-          skipDepth = 1; // Executed true branch, now skip false branch
-          if (topLevel) updateProgressStep(i, "skipped");
-          results.push({ index: i, type: step.type, ok: true, skipped: true });
+          frame.skipDepth = 1;
+          if (executionStack.length === 1) {
+            updateProgressStep(i, "skipped");
+          }
+          frame.index++;
+          await saveExecutionState();
           continue;
         }
 
         if (step.type === "end_if") {
-          if (topLevel) updateProgressStep(i, "ok");
-          results.push({ index: i, type: step.type, ok: true });
+          if (executionStack.length === 1) {
+            updateProgressStep(i, "ok");
+          }
+          frame.index++;
+          await saveExecutionState();
           continue;
         }
 
         if (step.type === "loop") {
-          if (topLevel) updateProgressStep(i, "running");
-          const maxIterations = 100;
-          let iterations = 0;
-          
-          if (step.mode === "repeat") {
-            const countStr = typeof step.count === "string" ? replaceVars(step.count, variables) : step.count;
-            const count = parseInt(countStr, 10) || 1;
-            console.log(`[TaskOrbit] Starting 'repeat' loop for ${count} iterations.`);
-            while (iterations < count && iterations < maxIterations && !window.__vf_emergency_stop) {
-              if (topLevel) {
-                updateProgressStep(i, "running", `[${iterations + 1}/${count}]`);
-                updateSmartToastText(`Processing item ${iterations + 1} of ${count}...`);
-              }
-              console.log(`[TaskOrbit] 'repeat' loop iteration ${iterations + 1}/${count} starting.`);
-              const subVars = { ...variables, loop_index: iterations, loop_index_1: iterations + 1 };
-              const subResult = await executeSteps(step.steps || [], subVars, MAX_RETRIES, false);
-              if (!subResult.ok) {
-                const errMsg = `Iteration ${iterations + 1} failed: ` + (subResult.error || "Loop execution failed");
-                chrome.runtime.sendMessage({ type: "addLog", entry: { workflowId: window.__wfId, workflowName: window.__wfName, durationMs: 0, status: "error", errorMessage: errMsg } }).catch(() => {});
-                throw new Error(errMsg);
-              }
-              console.log(`[TaskOrbit] 'repeat' loop iteration ${iterations + 1}/${count} completed.`);
-              chrome.runtime.sendMessage({ type: "addLog", entry: { workflowId: window.__wfId, workflowName: window.__wfName, durationMs: 0, status: "success", errorMessage: `Loop 'repeat' item ${iterations + 1}/${count} completed.` } }).catch(() => {});
-              iterations++;
-            }
-          } else if (step.mode === "whileExists") {
-            console.log(`[TaskOrbit] Starting 'whileExists' loop for selector: ${step.selector}`);
-            while (queryEl(step) && iterations < maxIterations && !window.__vf_emergency_stop) {
-              if (topLevel) {
-                updateProgressStep(i, "running", `[Iteration ${iterations + 1}]`);
-                updateSmartToastText(`Processing iteration ${iterations + 1}...`);
-              }
-              console.log(`[TaskOrbit] 'whileExists' loop iteration ${iterations + 1} starting.`);
-              const subVars = { ...variables, loop_index: iterations, loop_index_1: iterations + 1 };
-              const subResult = await executeSteps(step.steps || [], subVars, MAX_RETRIES, false);
-              if (!subResult.ok) {
-                const errMsg = `Iteration ${iterations + 1} failed: ` + (subResult.error || "Loop execution failed");
-                chrome.runtime.sendMessage({ type: "addLog", entry: { workflowId: window.__wfId, workflowName: window.__wfName, durationMs: 0, status: "error", errorMessage: errMsg } }).catch(() => {});
-                throw new Error(errMsg);
-              }
-              console.log(`[TaskOrbit] 'whileExists' loop iteration ${iterations + 1} completed.`);
-              chrome.runtime.sendMessage({ type: "addLog", entry: { workflowId: window.__wfId, workflowName: window.__wfName, durationMs: 0, status: "success", errorMessage: `Loop 'whileExists' iteration ${iterations + 1} completed.` } }).catch(() => {});
-              iterations++;
-            }
-          } else if (step.mode === "forEach") {
-            const els = queryEls(step);
-            const count = els.length;
-            console.log(`[TaskOrbit] Starting 'forEach' loop. Found ${count} elements for selector: ${step.selector}`);
-            
-            // Tag elements with a unique data attribute so they can be reliably targeted
-            // regardless of DOM shifting, hidden rows, or multiple tables.
-            els.forEach((el, idx) => el.setAttribute("data-to-loop-idx", idx + 1));
-            
-            while (iterations < count && iterations < maxIterations && !window.__vf_emergency_stop) {
-              if (topLevel) {
-                updateProgressStep(i, "running", `[Item ${iterations + 1}/${count}]`);
-                updateSmartToastText(`Processing row ${iterations + 1} of ${count}...`);
-              }
-              console.log(`[TaskOrbit] 'forEach' loop item ${iterations + 1}/${count} starting.`);
-              const subVars = { ...variables, loop_index: iterations, loop_index_1: iterations + 1 };
-              const subResult = await executeSteps(step.steps || [], subVars, MAX_RETRIES, false);
-              if (!subResult.ok) {
-                const errMsg = `Item ${iterations + 1} failed: ` + (subResult.error || "Loop execution failed");
-                chrome.runtime.sendMessage({ type: "addLog", entry: { workflowId: window.__wfId, workflowName: window.__wfName, durationMs: 0, status: "error", errorMessage: errMsg } }).catch(() => {});
-                throw new Error(errMsg);
-              }
-              console.log(`[TaskOrbit] 'forEach' loop item ${iterations + 1}/${count} completed.`);
-              chrome.runtime.sendMessage({ type: "addLog", entry: { workflowId: window.__wfId, workflowName: window.__wfName, durationMs: 0, status: "success", errorMessage: `Loop 'forEach' item ${iterations + 1}/${count} completed.` } }).catch(() => {});
-              iterations++;
-            }
-          } else if (step.mode === "forEachRow") {
-            const rows = window.__to_dataRows || [];
-            const count = rows.length;
-            console.log(`[TaskOrbit] Starting 'forEachRow' loop. Found ${count} rows of data.`);
-            
-            const memKey = `memory_bank_${window.__wfId}`;
-            const memData = await chrome.storage.local.get(memKey);
-            const bank = memData[memKey] || [];
-            
-            while (iterations < count && iterations < maxIterations && !window.__vf_emergency_stop) {
-              const rowData = rows[iterations] || {};
-              const rowStr = JSON.stringify(rowData);
-              const msgUint8 = new TextEncoder().encode(rowStr);
-              const hashBuffer = await crypto.subtle.digest('SHA-256', msgUint8);
-              const hashArray = Array.from(new Uint8Array(hashBuffer));
-              const hashStr = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
-              
-              if (bank.includes(hashStr)) {
-                console.log(`[TaskOrbit] 'forEachRow' skipping row ${iterations + 1} (already processed)`);
-                iterations++;
-                continue;
-              }
-
-              if (topLevel) {
-                updateProgressStep(i, "running", `[Row ${iterations + 1}/${count}]`);
-                updateSmartToastText(`Processing row ${iterations + 1} of ${count}...`);
-              }
-              console.log(`[TaskOrbit] 'forEachRow' loop row ${iterations + 1}/${count} starting.`);
-
-              const subVars = { ...variables, ...rowData, loop_index: iterations, loop_index_1: iterations + 1 };
-              const subResult = await executeSteps(step.steps || [], subVars, MAX_RETRIES, false);
-              if (!subResult.ok) {
-                const errMsg = `Row ${iterations + 1} failed: ` + (subResult.error || "Loop execution failed");
-                chrome.runtime.sendMessage({ type: "addLog", entry: { workflowId: window.__wfId, workflowName: window.__wfName, durationMs: 0, status: "error", errorMessage: errMsg } }).catch(() => {});
-                throw new Error(errMsg);
-              }
-              console.log(`[TaskOrbit] 'forEachRow' loop row ${iterations + 1}/${count} completed.`);
-              chrome.runtime.sendMessage({ type: "addLog", entry: { workflowId: window.__wfId, workflowName: window.__wfName, durationMs: 0, status: "success", errorMessage: `Loop 'forEachRow' row ${iterations + 1}/${count} completed.` } }).catch(() => {});
-              iterations++;
-            }
+          if (executionStack.length === 1) {
+            updateProgressStep(i, "running");
           }
-          
-          if (window.__vf_emergency_stop) {
-            throw new Error("Emergency Stop triggered by user.");
+
+          const loopFrame = await initLoopFrame(step, frame);
+          if (loopFrame) {
+            executionStack.push(loopFrame);
+            await saveExecutionState();
+          } else {
+            frame.index++;
+            if (executionStack.length === 1) {
+              updateProgressStep(i, "ok");
+            }
+            await saveExecutionState();
           }
-          
-          if (topLevel) updateProgressStep(i, "ok");
-          results.push({ index: i, type: step.type, ok: true });
           continue;
         }
 
-        if (topLevel) updateProgressStep(i, "running");
-        await runStep(step, variables);
-        if (topLevel) updateProgressStep(i, "ok");
-        results.push({ index: i, type: step.type, ok: true });
-      } catch (e) {
-        if (step.optional) {
-          if (topLevel) updateProgressStep(i, "skipped");
-          results.push({ index: i, type: step.type, ok: true, skipped: true, note: e.message });
+        if (step.type === "runWorkflow") {
+          if (executionStack.length === 1) {
+            updateProgressStep(i, "running");
+          }
+          const wfId = step.value;
+          if (!wfId) throw new Error("No workflow ID provided for nested execution.");
+          
+          const data = await chrome.storage.local.get("workflows");
+          const wfs = data.workflows || [];
+          const subWf = wfs.find(w => w.id === wfId);
+          if (!subWf) throw new Error("Workflow not found: " + wfId);
+          
+          const subFrame = {
+            steps: subWf.steps || [],
+            index: 0,
+            variables: {},
+            skipDepth: 0,
+            loopInfo: null
+          };
+          
+          executionStack.push(subFrame);
+          await saveExecutionState();
           continue;
+        }
+
+        if (executionStack.length === 1) {
+          updateProgressStep(i, "running");
         } else {
-          if (topLevel) updateProgressStep(i, "fail");
-          results.push({ index: i, type: step.type, ok: false, error: e.message });
-          setTimeout(removeProgressOverlay, 2500);
-          return { ok: false, failedAt: i, error: e.message, results };
+          const isTopLevelLoop = executionStack.length === 2 && executionStack[0].loopInfo === null && executionStack[1].loopInfo !== null;
+          if (isTopLevelLoop) {
+            const parentIndex = executionStack[1].loopInfo.parentIndex;
+            const it_1 = executionStack[1].loopInfo.iterations + 1;
+            const countStr = executionStack[1].loopInfo.count ? `/${executionStack[1].loopInfo.count}` : "";
+            updateProgressStep(parentIndex, "running", `[${it_1}${countStr}]`);
+            updateSmartToastText(`Processing item ${it_1}${countStr}...`);
+          }
         }
+
+        let isNavigating = ["navigate", "click"].includes(step.type);
+        if (step.type === "pressKey") {
+          let pcfg = { key: "Enter" };
+          try { if (step.value) pcfg = { ...pcfg, ...JSON.parse(step.value) }; } catch {}
+          if (pcfg.key === "Enter") {
+            isNavigating = true;
+          }
+        }
+
+        if (isNavigating) {
+          frame.index = i + 1;
+          await saveExecutionState();
+          frame.index = i;
+        }
+
+        await runStep(step, window.__variables);
+
+        if (executionStack.length === 1) {
+          updateProgressStep(i, "ok");
+        }
+
+        frame.index = i + 1;
+        await saveExecutionState();
       }
+    } catch (e) {
+      if (executionStack.length > 0) {
+        const topIndex = executionStack[0].index;
+        updateProgressStep(topIndex, "fail");
+      }
+      setTimeout(removeProgressOverlay, 2500);
+      await clearExecutionState();
+      
+      if (topLevel) {
+        await chrome.runtime.sendMessage({
+          type: "addLog",
+          entry: {
+            workflowId: window.__wfId,
+            workflowName: window.__wfName,
+            durationMs: Date.now() - window.__wfStartTime,
+            status: "error",
+            errorMessage: e.message
+          }
+        }).catch(() => {});
+      }
+      return { ok: false, error: e.message };
     }
-    if (topLevel) setTimeout(removeProgressOverlay, 1200);
-    return { ok: true, results };
+
+    if (window.__vf_emergency_stop) {
+      if (topLevel) removeProgressOverlay();
+      await clearExecutionState();
+      return { ok: false, error: "Emergency Stop triggered by user." };
+    }
+
+    if (topLevel) {
+      setTimeout(removeProgressOverlay, 1200);
+      await clearExecutionState();
+      await chrome.runtime.sendMessage({
+        type: "addLog",
+        entry: {
+          workflowId: window.__wfId,
+          workflowName: window.__wfName,
+          durationMs: Date.now() - window.__wfStartTime,
+          status: "success",
+          errorMessage: ""
+        }
+      }).catch(() => {});
+    }
+
+    return { ok: true };
+  }
+
+  async function executeSteps(steps, variables, maxRetries = 3, topLevel = false) {
+    if (topLevel) {
+      window.__vf_emergency_stop = false;
+      window.__to_dataTable = [];
+      window.__to_dataRows = [];
+      window.__wfStartTime = Date.now();
+      
+      executionStack = [{
+        steps: steps,
+        index: 0,
+        variables: {},
+        skipDepth: 0,
+        loopInfo: null
+      }];
+      window.__variables = variables || {};
+    }
+
+    MAX_RETRIES = maxRetries;
+    return await executeStack(topLevel);
   }
 
   // ---- Safe Math Evaluator using Sandboxed iframe ----------------------------
@@ -1139,7 +1502,24 @@
     if (msg && msg.type === "executeSteps") {
       window.__wfId = msg.workflowId || "unknown";
       window.__wfName = msg.workflowName || "Unknown Workflow";
+      window.__tabId = msg.tabId;
       executeSteps(msg.steps || [], msg.variables || {}, msg.maxRetries, true).then(sendResponse);
+      return true; // async
+    }
+    if (msg && msg.type === "resumeWorkflow") {
+      window.__wfId = msg.state.workflowId || "unknown";
+      window.__wfName = msg.state.workflowName || "Unknown Workflow";
+      window.__tabId = msg.tabId;
+      MAX_RETRIES = msg.state.maxRetries || 3;
+      
+      window.__variables = msg.state.variables || {};
+      window.__to_dataTable = msg.state.dataTable || [];
+      window.__to_dataRows = msg.state.dataRows || [];
+      window.__wfStartTime = msg.state.startTime || Date.now();
+      
+      executionStack = msg.state.stack || [];
+
+      executeStack(true).then(sendResponse);
       return true; // async
     }
     if (msg && msg.type === "emergencyStop") {

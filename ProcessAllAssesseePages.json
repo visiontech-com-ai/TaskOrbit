@@ -1,0 +1,65 @@
+{
+  "name": "Process All Assessee Pages",
+  "folder": "",
+  "sites": [
+    "https://prdtax.wb.gov.in/admin/form6/sansad/*"
+  ],
+  "autoRun": false,
+  "maxRetries": 3,
+  "scheduleInterval": 0,
+  "scheduleUrl": "",
+  "shortcut": "",
+  "variables": [],
+  "steps": [
+    {
+      "type": "loop",
+      "mode": "forEach",
+      "selectorType": "css",
+      "selector": "table.table tbody tr",
+      "steps": [
+        {
+          "type": "click",
+          "selectorType": "css",
+          "selector": "[data-to-loop-idx=\"{{loop_index_1}}\"] a.view-assesse",
+          "value": "",
+          "delayMs": 500
+        },
+        {
+          "type": "wait",
+          "delayMs": 1500
+        },
+        {
+          "type": "comment",
+          "text": "--> [YOUR ACTIONS HERE]: Add steps here to extract data, save variables, or fill form fields inside the assessee details modal or page."
+        },
+        {
+          "type": "comment",
+          "text": "--> [GO BACK ACTION]: If the View link navigates to a new page, add a click step to return to the table page here."
+        }
+      ]
+    },
+    {
+      "type": "if_exists",
+      "selectorType": "css",
+      "selector": "a[rel=\"next\"]"
+    },
+    {
+      "type": "click",
+      "selectorType": "css",
+      "selector": "a[rel=\"next\"]",
+      "value": "",
+      "delayMs": 500
+    },
+    {
+      "type": "wait",
+      "delayMs": 2000
+    },
+    {
+      "type": "runWorkflow",
+      "value": "YOUR_WORKFLOW_ID"
+    },
+    {
+      "type": "end_if"
+    }
+  ]
+}

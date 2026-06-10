@@ -786,7 +786,7 @@ function renderStep(step, i, parentArray) {
       keyLabel.style.minWidth = "60px";
       const keyInput = document.createElement("input");
       keyInput.type = "text";
-      keyInput.list = "vf-key-list";
+      keyInput.setAttribute("list", "vf-key-list");
       keyInput.value = cfg.key;
       keyInput.placeholder = "e.g. Enter, a, F5";
       keyInput.style.flex = "1";
