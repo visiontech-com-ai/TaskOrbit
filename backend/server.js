@@ -96,14 +96,27 @@ app.post('/v1/license/verify', verifyLimiter, async (req, res) => {
       return res.status(403).json({ success: false, error: `License key status is "${license.status}".` });
     }
 
-    // Verify or bind email
+    // Check expiry before any binding so expired keys can't consume email/device slots
+    if (license.expires_at !== null && Date.now() > license.expires_at) {
+      await db.run('UPDATE licenses SET status = "expired" WHERE key = ?', [key]);
+      return res.status(403).json({ success: false, error: 'License key has expired.' });
+    }
+
+    // Verify or bind email (atomic: conditional UPDATE prevents TOCTOU races)
     if (license.email === null) {
       if (!email || !email.trim()) {
         return res.status(400).json({ success: false, error: 'An email address is required to redeem this license key.' });
       }
       const newEmail = email.trim().toLowerCase();
-      // Bind the email to the license (redeem it)
-      await db.run('UPDATE licenses SET email = ? WHERE key = ?', [newEmail, key]);
+      const emailResult = await db.run('UPDATE licenses SET email = ? WHERE key = ? AND email IS NULL', [newEmail, key]);
+      if (emailResult.changes === 0) {
+        // Another request bound the email concurrently — re-read and verify match
+        const current = await db.get('SELECT email FROM licenses WHERE key = ?', [key]);
+        const boundEmail = current && current.email ? current.email.trim().toLowerCase() : '';
+        if (boundEmail !== newEmail) {
+          return res.status(409).json({ success: false, error: 'This license key has already been redeemed by a different email address.' });
+        }
+      }
       license.email = newEmail;
     } else {
       // Verify email matches the bound email
@@ -114,20 +127,21 @@ app.post('/v1/license/verify', verifyLimiter, async (req, res) => {
       }
     }
 
-    // Verify or bind device
+    // Verify or bind device (atomic: conditional UPDATE prevents TOCTOU races)
     if (license.device_id === null) {
-      await db.run('UPDATE licenses SET device_id = ? WHERE key = ?', [deviceId, key]);
+      const deviceResult = await db.run('UPDATE licenses SET device_id = ? WHERE key = ? AND device_id IS NULL', [deviceId, key]);
+      if (deviceResult.changes === 0) {
+        // Another request bound the device concurrently — re-read and verify match
+        const current = await db.get('SELECT device_id FROM licenses WHERE key = ?', [key]);
+        if (current && current.device_id !== deviceId) {
+          return res.status(409).json({ success: false, error: 'This license key is already active on another device.' });
+        }
+      }
       license.device_id = deviceId;
     } else {
       if (license.device_id !== deviceId) {
         return res.status(403).json({ success: false, error: 'This license key is already active on another device.' });
       }
-    }
-
-    if (license.expires_at !== null && Date.now() > license.expires_at) {
-      // Auto-update expired license status in DB
-      await db.run('UPDATE licenses SET status = "expired" WHERE key = ?', [key]);
-      return res.status(403).json({ success: false, error: 'License key has expired.' });
     }
 
     // Sign JWT token

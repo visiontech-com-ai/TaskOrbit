@@ -19,3 +19,22 @@ services:
       timeout: 10s
       retries: 3
       start_period: 10s
+
+  taskorbit-marketplace:
+    build:
+      context: ./marketplace
+      dockerfile: Dockerfile
+    container_name: taskorbit-marketplace
+    restart: unless-stopped
+    ports:
+      - "4000:4000"
+    volumes:
+      - ./marketplace-data:/data
+    env_file:
+      - ./marketplace/.env
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://localhost:4000/health').then(r => r.json()).then(data => data.status === 'healthy' ? process.exit(0) : process.exit(1)).catch(() => process.exit(1))"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s

@@ -418,10 +418,9 @@ async function doRun(workflowId, variables) {
   if (!res) {
     setStatus("No response", "err");
   } else if (res.ok) {
-    setStatus(`Done - ${res.results.length} step(s) ran.`, "ok");
+    setStatus("Done.", "ok");
   } else {
-    const where = typeof res.failedAt === "number" ? ` at step ${res.failedAt + 1}` : "";
-    setStatus(`Failed${where}: ${res.error || lastError(res)}`, "err");
+    setStatus(`Failed: ${res.error || "Unknown error"}`, "err");
   }
 }
 

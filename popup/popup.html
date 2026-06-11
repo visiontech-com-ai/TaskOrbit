@@ -8,10 +8,13 @@
   </head>
   <body>
     <header>
-      <h1>Workflows</h1>
+      <div class="header-brand">
+        <div class="brand-icon">T</div>
+        <h1>TaskOrbit</h1>
+      </div>
       <div class="actions">
-        <button id="newBtn" class="btn btn-primary" title="Create a new workflow">+ New</button>
-        <button id="optionsBtn" class="btn" title="Open full editor">Manage</button>
+        <button id="newBtn" class="btn btn-primary btn-sm" title="Create a new workflow">+ New</button>
+        <button id="optionsBtn" class="btn btn-sm" title="Open full editor">Manage</button>
       </div>
     </header>
 
@@ -28,7 +31,7 @@
 
     <div id="status" class="status"></div>
 
-    <div id="varPrompt" class="banner hidden" style="flex-direction: column; align-items: stretch; background: var(--bg-alt); color: var(--text-color); border: 1px solid var(--border-color); padding: 10px; margin: 10px; border-radius: 4px;">
+    <div id="varPrompt" class="banner hidden" style="flex-direction: column; align-items: stretch; background: var(--surface); color: var(--fg); border: 1.5px solid var(--border); padding: 14px; margin: 10px; border-radius: 10px;">
       <h3 style="margin-top:0; font-size: 14px;">Run Variables</h3>
       <div id="varInputs" style="display: flex; flex-direction: column; gap: 8px;"></div>
       <div class="actions" style="margin-top: 10px; justify-content: flex-end;">
@@ -67,7 +70,8 @@
       </div>
     </div>
 
-    <div id="emergencyStopContainer" class="hidden" style="padding: 10px; text-align: center; border-top: 1px solid var(--border-color);">
+    <div id="emergencyStopContainer" class="hidden" style="padding: 10px; text-align: center; border-top: 1px solid var(--border);">
+
       <button id="emergencyStopBtn" class="btn btn-danger" style="width: 100%; font-weight: bold;">■ Stop Workflow</button>
     </div>
 

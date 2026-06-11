@@ -722,11 +722,7 @@
         const rowData = window.__to_dataRows[rowIdx];
         if (!rowData) return;
         
-        const rowStr = JSON.stringify(rowData);
-        const msgUint8 = new TextEncoder().encode(rowStr);
-        const hashBuffer = await crypto.subtle.digest('SHA-256', msgUint8);
-        const hashArray = Array.from(new Uint8Array(hashBuffer));
-        const hashStr = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+        const hashStr = await hashRow(rowData);
 
         const memKey = `memory_bank_${window.__wfId}`;
         const data = await chrome.storage.local.get(memKey);
@@ -994,7 +990,10 @@
   let executionStack = [];
 
   async function saveExecutionState() {
-    if (!window.__tabId) return;
+    if (!window.__tabId) {
+      console.warn("[TaskOrbit] saveExecutionState: tabId not set — workflow will not resume after navigation.");
+      return;
+    }
     const state = {
       workflowId: window.__wfId,
       workflowName: window.__wfName,
@@ -1125,27 +1124,7 @@
     }
 
     if (loopInfo.mode === "forEachRow") {
-      const rows = window.__to_dataRows || [];
-      const count = rows.length;
-      if (loopInfo.iterations >= count) return true;
-      
-      const memKey = `memory_bank_${window.__wfId}`;
-      const memData = await chrome.storage.local.get(memKey);
-      const bank = memData[memKey] || [];
-      
-      const rowData = rows[loopInfo.iterations] || {};
-      const hashStr = await hashRow(rowData);
-      if (bank.includes(hashStr)) {
-        while (loopInfo.iterations < count) {
-          const nextRow = rows[loopInfo.iterations] || {};
-          const nextHash = await hashRow(nextRow);
-          if (!bank.includes(nextHash)) {
-            break;
-          }
-          loopInfo.iterations++;
-        }
-      }
-      return loopInfo.iterations >= count;
+      return loopInfo.iterations >= (window.__to_dataRows || []).length;
     }
 
     return true;
@@ -1215,6 +1194,20 @@
             }).catch(() => {});
 
             frame.loopInfo.iterations++;
+
+            // For forEachRow: advance past any rows already in the memory bank
+            if (frame.loopInfo.mode === "forEachRow") {
+              const rows = window.__to_dataRows || [];
+              const memKey = `memory_bank_${window.__wfId}`;
+              const memData = await chrome.storage.local.get(memKey);
+              const bank = memData[memKey] || [];
+              while (frame.loopInfo.iterations < rows.length) {
+                const nextHash = await hashRow(rows[frame.loopInfo.iterations] || {});
+                if (!bank.includes(nextHash)) break;
+                frame.loopInfo.iterations++;
+              }
+            }
+
             const finished = await isLoopFinished(frame);
             if (!finished) {
               frame.index = 0;
@@ -1406,8 +1399,38 @@
           frame.index = i;
         }
 
-        await runStep(step, window.__variables);
+        const isSubWorkflowFrame = executionStack.length > 1 && frame.loopInfo === null;
+        const varsBefore = isSubWorkflowFrame ? { ...window.__variables } : null;
+
+        try {
+          await runStep(step, window.__variables);
+        } catch (e) {
+          if (step.optional) {
+            if (executionStack.length === 1) {
+              updateProgressStep(i, "skipped");
+            }
+            frame.index = i + 1;
+            await saveExecutionState();
+            continue;
+          }
+          throw e;
+        }
         removeHighlight();
+
+        if (isSubWorkflowFrame && varsBefore) {
+          for (const k of Object.keys(window.__variables)) {
+            if (!(k in varsBefore) || window.__variables[k] !== varsBefore[k]) {
+              frame.variables[k] = window.__variables[k];
+            }
+          }
+          for (const k of Object.keys(window.__variables)) {
+            if (!(k in varsBefore)) {
+              delete window.__variables[k];
+            } else {
+              window.__variables[k] = varsBefore[k];
+            }
+          }
+        }
 
         if (executionStack.length === 1) {
           updateProgressStep(i, "ok");
@@ -1568,10 +1591,17 @@
 
   chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     if (msg && msg.type === "executeSteps") {
+      if (window.__wfRunning) {
+        sendResponse({ ok: false, error: "A workflow is already running. Use Emergency Stop first." });
+        return false;
+      }
+      window.__wfRunning = true;
       window.__wfId = msg.workflowId || "unknown";
       window.__wfName = msg.workflowName || "Unknown Workflow";
       window.__tabId = msg.tabId;
-      executeSteps(msg.steps || [], msg.variables || {}, msg.maxRetries, true).then(sendResponse);
+      executeSteps(msg.steps || [], msg.variables || {}, msg.maxRetries, true)
+        .then(result => { window.__wfRunning = false; sendResponse(result); })
+        .catch(err => { window.__wfRunning = false; sendResponse({ ok: false, error: err.message }); });
       return true; // async
     }
     if (msg && msg.type === "resumeWorkflow") {
@@ -1638,6 +1668,7 @@
     if (msg && msg.type === "emergencyStop") {
       window.__vf_emergency_stop = true;
       window.__debugMode = false;
+      window.__wfRunning = false;
       removeHighlight();
       removeProgressOverlay();
       sendResponse({ ok: true });

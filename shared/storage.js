@@ -40,6 +40,41 @@ export const STEP_TYPES = {
   loop: { label: "Loop Container", needs: [], proFeature: "loops", group: "Logic & Loops" }
 };
 
+export const STEP_GROUPS = [
+  {
+    label: "Page Interaction",
+    types: ["navigate", "click", "focus", "setText", "clearField", "check", "selectOption", "pressKey"]
+  },
+  {
+    label: "Waiting",
+    types: ["wait", "waitFor", "waitVisible", "waitInvisible", "waitNetworkIdle"]
+  },
+  {
+    label: "Data Extraction",
+    types: ["extractText", "calculateMath"]
+  },
+  {
+    label: "Data Table (CSV)",
+    types: ["load_csv", "append_row", "mark_row_processed", "export_table"]
+  },
+  {
+    label: "Export & Output",
+    types: ["exportData", "screenshot", "sendWebhook"]
+  },
+  {
+    label: "Conditions",
+    types: ["if_exists", "if_not_exists", "if_variable", "else", "end_if"]
+  },
+  {
+    label: "Loops",
+    types: ["loop"]
+  },
+  {
+    label: "Advanced",
+    types: ["runWorkflow"]
+  }
+];
+
 export const COMPARISON_OPERATORS = {
   "==": { label: "Equals (==)" },
   "!=": { label: "Not Equals (!=)" },
@@ -261,7 +296,8 @@ export async function getSettings() {
   const data = await chrome.storage.local.get(SETTINGS_KEY);
   return data[SETTINGS_KEY] || {
     revealPasswords: "off", // "off", "all", "site"
-    revealSites: []
+    revealSites: [],
+    marketplaceUrl: "http://localhost:4000"
   };
 }
 

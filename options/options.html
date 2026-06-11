@@ -9,17 +9,20 @@
   <body>
     <aside class="sidebar">
       <div class="sidebar-head">
-        <h1>Workflows</h1>
+        <div class="sidebar-brand">
+          <div class="brand-icon">T</div>
+          <h1>TaskOrbit</h1>
+        </div>
         <button id="newBtn" class="btn btn-primary btn-sm">+ New</button>
       </div>
       <ul id="wfList" class="wf-list"></ul>
       <div class="sidebar-foot">
-        <button id="viewLogsBtn" class="btn btn-sm">📋 Logs</button>
-        <button id="settingsBtn" class="btn btn-sm">⚙️ Settings</button>
         <button id="templatesBtn" class="btn btn-sm">🗂️ Templates</button>
-        <button id="marketplaceBtn" class="btn btn-sm">🌐 Hub</button>
-        <button id="exportBtn" class="btn btn-sm">📤 Export</button>
-        <button id="importBtn" class="btn btn-sm">📥 Import</button>
+        <button id="marketplaceBtn" class="btn btn-sm">🛒 Market</button>
+        <button id="viewLogsBtn" class="btn btn-sm">Logs</button>
+        <button id="settingsBtn" class="btn btn-sm">Settings</button>
+        <button id="exportBtn" class="btn btn-sm">Export</button>
+        <button id="importBtn" class="btn btn-sm">Import</button>
         <input id="importFile" type="file" accept="application/json" class="hidden" />
       </div>
     </aside>
@@ -28,7 +31,7 @@
       <div id="emptyEditor" class="empty">Select a workflow on the left, or create a new one.</div>
 
       <form id="editorForm" class="hidden">
-        <div class="top-settings-row" style="display: flex; flex-wrap: wrap; gap: 15px; align-items: flex-end; margin-bottom: 24px; background: #f8fafc; padding: 15px; border-radius: 8px; border: 1px solid var(--border);">
+        <div class="top-settings-row" style="display: flex; flex-wrap: wrap; gap: 15px; align-items: flex-end; margin-bottom: 24px; background: var(--surface); padding: 16px; border-radius: 12px; border: 1.5px solid var(--border); box-shadow: 0 1px 4px rgba(0,0,0,.05);">
           <div style="flex: 2; min-width: 200px;">
             <label for="wfName" style="margin-bottom: 4px;">Name</label>
             <input id="wfName" type="text" placeholder="Workflow name" style="width: 100%; max-width: 100%;" />
@@ -129,27 +132,58 @@
       </form>
     </main>
 
-    <main id="logsView" class="hidden" style="padding: 20px; overflow-y: auto; flex: 1; background: var(--bg-alt);">
-      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
-        <h2 style="margin: 0; font-size: 1.2rem;">Execution Logs</h2>
+    <main id="logsView" class="hidden" style="padding: 28px 32px; overflow-y: auto; flex: 1; background: var(--bg);">
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px;">
+        <h2>Execution Logs</h2>
         <button id="clearLogsBtn" class="btn btn-danger btn-sm">Clear Logs</button>
       </div>
       <table style="width: 100%; text-align: left; border-collapse: collapse; font-size: 13px;">
         <thead>
-          <tr style="border-bottom: 1px solid var(--border-color);">
-            <th style="padding: 8px;">Date</th>
-            <th style="padding: 8px;">Workflow</th>
-            <th style="padding: 8px;">Duration</th>
-            <th style="padding: 8px;">Status</th>
-            <th style="padding: 8px;">Message</th>
+          <tr>
+            <th>Date</th>
+            <th>Workflow</th>
+            <th>Duration</th>
+            <th>Status</th>
+            <th>Message</th>
           </tr>
         </thead>
         <tbody id="logsTableBody"></tbody>
       </table>
     </main>
 
-    <main id="settingsView" class="hidden" style="padding: 20px; overflow-y: auto; flex: 1; background: var(--bg-alt);">
-      <h2 style="margin: 0 0 20px 0; font-size: 1.2rem;">Global Settings</h2>
+    <main id="marketplaceView" class="hidden" style="padding: 28px 32px; overflow-y: auto; flex: 1; background: var(--bg);">
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; flex-wrap: wrap; gap: 12px;">
+        <h2>Community Marketplace</h2>
+        <button id="publishWorkflowBtn" class="btn btn-primary btn-sm">Share Current Workflow</button>
+      </div>
+
+      <div style="display: flex; gap: 10px; margin-bottom: 20px; flex-wrap: wrap;">
+        <input id="marketplaceSearch" type="text" placeholder="Search workflows…" style="flex: 1; min-width: 180px;" />
+        <select id="marketplaceCategory" style="min-width: 160px;">
+          <option value="">All Categories</option>
+        </select>
+        <select id="marketplaceSort" style="min-width: 140px;">
+          <option value="newest">Newest</option>
+          <option value="downloads">Most Downloaded</option>
+        </select>
+        <button id="marketplaceSearchBtn" class="btn btn-sm">Search</button>
+      </div>
+
+      <div id="marketplaceGrid" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 16px; margin-bottom: 20px;"></div>
+
+      <div id="marketplacePagination" style="display: flex; justify-content: center; align-items: center; gap: 12px; padding: 10px 0;">
+        <button id="marketplacePrevBtn" class="btn btn-sm" disabled>← Prev</button>
+        <span id="marketplacePageInfo" style="font-size: 13px; color: var(--muted);"></span>
+        <button id="marketplaceNextBtn" class="btn btn-sm" disabled>Next →</button>
+      </div>
+
+      <div id="marketplaceStatus" style="text-align: center; font-size: 13px; color: var(--muted); padding: 40px 0; display: none;">
+        Loading…
+      </div>
+    </main>
+
+    <main id="settingsView" class="hidden" style="padding: 28px 32px; overflow-y: auto; flex: 1; background: var(--bg);">
+      <h2 style="margin: 0 0 24px 0;">Global Settings</h2>
       
       <fieldset style="margin-bottom: 20px;">
         <legend>Password Reveal</legend>
@@ -198,30 +232,16 @@
       </fieldset>
     </main>
 
-    <main id="templatesView" class="hidden" style="padding: 20px; overflow-y: auto; flex: 1; background: var(--bg-alt);">
-      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
-        <h2 style="margin: 0; font-size: 1.2rem;">Workflow Templates</h2>
+    <main id="templatesView" class="hidden" style="padding: 28px 32px; overflow-y: auto; flex: 1; background: var(--bg);">
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px;">
+        <h2>Workflow Templates</h2>
       </div>
       <div id="templateCategoryFilters" class="template-category-filters"></div>
       <div id="templateCards" class="template-cards"></div>
     </main>
 
-    <main id="marketplaceView" class="hidden" style="padding: 20px; overflow-y: auto; flex: 1; background: var(--bg-alt);">
-      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; flex-wrap: wrap; gap: 10px;">
-        <h2 style="margin: 0; font-size: 1.2rem;">Community Marketplace</h2>
-        <div style="display: flex; gap: 10px; align-items: center; flex-wrap: wrap;">
-          <input id="marketplaceSearch" type="text" placeholder="Search workflows..." style="padding: 5px 10px; font-size: 13px;" />
-          <select id="marketplaceSort" style="padding: 5px 10px; font-size: 13px;">
-            <option value="recent">Recent</option>
-            <option value="likes">Most Liked</option>
-            <option value="downloads">Most Downloaded</option>
-          </select>
-        </div>
-      </div>
-      <div id="marketplaceCards" class="template-cards"></div>
-    </main>
+    <footer style="position: fixed; bottom: 0; left: 0; right: 0; background: #fff; border-top: 1.5px solid #e2e8f0; padding: 12px 26px; display: flex; justify-content: space-between; align-items: center; font-size: 12px; z-index: 1000; box-shadow: 0 -4px 16px rgba(0,0,0,.04);">
 
-    <footer style="position: fixed; bottom: 0; left: 0; right: 0; background: var(--bg); border-top: 1px solid var(--border); padding: 12px 26px; display: flex; justify-content: space-between; align-items: center; font-size: 13px; z-index: 1000; box-shadow: 0 -2px 10px rgba(0,0,0,0.02);">
       <div style="color: var(--muted); font-weight: 500;">
         &copy; 2026 TaskOrbit. All rights reserved.
       </div>
@@ -231,10 +251,59 @@
       </div>
     </footer>
 
+    <!-- Publish to Marketplace Modal -->
+    <div id="publishModal" class="hidden" style="position: fixed; inset: 0; background: rgba(15,23,42,.55); z-index: 2000; display: none; align-items: center; justify-content: center; backdrop-filter: blur(4px);">
+      <div style="background: white; border-radius: 16px; padding: 28px; max-width: 460px; width: 100%; box-shadow: 0 24px 64px rgba(0,0,0,.22), 0 4px 16px rgba(0,0,0,.1); border: 1.5px solid #e2e8f0;">
+        <h2 style="margin: 0 0 16px 0; font-size: 1.2rem;">Share Workflow to Marketplace</h2>
+        <div style="display: flex; flex-direction: column; gap: 12px;">
+          <div>
+            <label style="font-size: 12px; font-weight: 600; margin-bottom: 4px; display: block;">Workflow</label>
+            <select id="publishWorkflowSelect" style="width: 100%;"></select>
+          </div>
+          <div>
+            <label style="font-size: 12px; font-weight: 600; margin-bottom: 4px; display: block;">Author Name</label>
+            <input id="publishAuthor" type="text" placeholder="Your name or handle" style="width: 100%;" />
+          </div>
+          <div>
+            <label style="font-size: 12px; font-weight: 600; margin-bottom: 4px; display: block;">Category</label>
+            <select id="publishCategory" style="width: 100%;">
+              <option value="General">General</option>
+              <option value="Form Automation">Form Automation</option>
+              <option value="Data Scraping">Data Scraping</option>
+              <option value="Navigation">Navigation</option>
+              <option value="Testing">Testing</option>
+              <option value="Productivity">Productivity</option>
+              <option value="Finance">Finance</option>
+              <option value="E-Commerce">E-Commerce</option>
+              <option value="Social Media">Social Media</option>
+              <option value="Other">Other</option>
+            </select>
+          </div>
+          <div>
+            <label style="font-size: 12px; font-weight: 600; margin-bottom: 4px; display: block;">Description</label>
+            <textarea id="publishDescription" rows="3" placeholder="What does this workflow do?" style="width: 100%; resize: vertical;"></textarea>
+          </div>
+          <div>
+            <label style="font-size: 12px; font-weight: 600; margin-bottom: 4px; display: block;">Tags <span style="font-weight: 400; color: var(--muted);">(comma-separated)</span></label>
+            <input id="publishTags" type="text" placeholder="login, form, automation" style="width: 100%;" />
+          </div>
+          <div>
+            <label style="font-size: 12px; font-weight: 600; margin-bottom: 4px; display: block;">Target Sites <span style="font-weight: 400; color: var(--muted);">(comma-separated, optional)</span></label>
+            <input id="publishSites" type="text" placeholder="example.com, another.com" style="width: 100%;" />
+          </div>
+          <div id="publishMessage" style="font-size: 12px; min-height: 18px;"></div>
+          <div style="display: flex; gap: 10px; justify-content: flex-end;">
+            <button type="button" id="closePublishModalBtn" class="btn btn-sm">Cancel</button>
+            <button type="button" id="confirmPublishBtn" class="btn btn-primary btn-sm">Publish</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
     <!-- Upgrade Modal -->
-    <div id="upgradeModal" class="hidden" style="position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 2000; display: none; align-items: center; justify-content: center; backdrop-filter: blur(2px);">
-      <div style="background: white; border-radius: 12px; padding: 30px; max-width: 420px; width: 100%; box-shadow: 0 10px 40px rgba(0,0,0,0.2);">
-        <h2 style="margin: 0 0 15px 0; color: var(--fg); font-size: 1.4rem;">🚀 Unlock TaskOrbit Pro</h2>
+    <div id="upgradeModal" class="hidden" style="position: fixed; inset: 0; background: rgba(15,23,42,.55); z-index: 2000; display: none; align-items: center; justify-content: center; backdrop-filter: blur(4px);">
+      <div style="background: white; border-radius: 16px; padding: 30px; max-width: 420px; width: 100%; box-shadow: 0 24px 64px rgba(0,0,0,.22), 0 4px 16px rgba(0,0,0,.1); border: 1.5px solid #e2e8f0;">
+        <h2 style="margin: 0 0 15px 0; color: #0f172a; font-size: 1.25rem; font-weight: 700; letter-spacing: -0.3px;">🚀 Unlock TaskOrbit Pro</h2>
         <p style="margin: 0 0 20px 0; color: var(--muted); line-height: 1.5;">Loops, variables, conditions, and auto-run are advanced capabilities reserved for Pro users.</p>
         
         <ul style="list-style: none; padding: 0; margin: 0 0 25px 0; color: var(--fg);">

@@ -375,22 +375,24 @@ document.addEventListener('DOMContentLoaded', () => {
 
       // Actions cell
       const tdActions = document.createElement('td');
-      tdActions.style.display = 'flex';
-      tdActions.style.gap = '8px';
+      const actionsWrapper = document.createElement('div');
+      actionsWrapper.style.display = 'flex';
+      actionsWrapper.style.gap = '8px';
 
       const btnReset = document.createElement('button');
       btnReset.className = 'table-action-btn reset';
       btnReset.textContent = 'Reset Device';
       btnReset.disabled = (lic.status !== 'active' || isExpired);
       btnReset.addEventListener('click', () => resetDevice(lic.key));
-      tdActions.appendChild(btnReset);
+      actionsWrapper.appendChild(btnReset);
 
       const btnRevoke = document.createElement('button');
       btnRevoke.className = 'table-action-btn revoke';
       btnRevoke.textContent = 'Revoke';
       btnRevoke.disabled = (lic.status !== 'active' || isExpired);
       btnRevoke.addEventListener('click', () => revokeKey(lic.key));
-      tdActions.appendChild(btnRevoke);
+      actionsWrapper.appendChild(btnRevoke);
+      tdActions.appendChild(actionsWrapper);
 
       tr.appendChild(tdKey);
       tr.appendChild(tdUser);
