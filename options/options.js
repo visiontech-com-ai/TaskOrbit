@@ -1659,31 +1659,27 @@ async function renderLicenseStatus() {
 
   if (!badge || !text) return;
 
+  const entryArea = document.getElementById("licenseEntryArea");
+
   if (license.tier === "PRO") {
     badge.textContent = "PRO";
-    badge.style.background = "#dbeafe";
-    badge.style.color = "#1e40af";
-    text.textContent = "TaskOrbit Pro is active. All advanced features unlocked!";
-    input.value = license.key ? "•".repeat(license.key.length) : "••••••••••••";
-    input.disabled = true;
-    if (emailInput) {
-      emailInput.value = license.email || "";
-      emailInput.disabled = true;
-    }
-    activateBtn.disabled = true;
+    badge.style.background = "linear-gradient(135deg,#dbeafe,#ede9fe)";
+    badge.style.color = "#4f46e5";
+    badge.style.fontWeight = "700";
+    text.textContent = `Pro license active${license.email ? " · " + license.email : ""}. All features unlocked.`;
+    if (entryArea) entryArea.style.display = "none";
     removeBtn.classList.remove("hidden");
     if (msg) msg.textContent = "";
   } else {
     badge.textContent = "LITE";
     badge.style.background = "#e2e8f0";
     badge.style.color = "#475569";
+    badge.style.fontWeight = "700";
     text.textContent = "TaskOrbit Lite (Free) is active. Upgrade to unlock loops, conditions, and auto-run.";
+    if (entryArea) entryArea.style.display = "";
     input.value = "";
     input.disabled = false;
-    if (emailInput) {
-      emailInput.value = "";
-      emailInput.disabled = false;
-    }
+    if (emailInput) { emailInput.value = ""; emailInput.disabled = false; }
     activateBtn.disabled = false;
     removeBtn.classList.add("hidden");
     if (msg) msg.textContent = "";

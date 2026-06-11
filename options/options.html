@@ -17,13 +17,23 @@
       </div>
       <ul id="wfList" class="wf-list"></ul>
       <div class="sidebar-foot">
-        <button id="templatesBtn" class="btn btn-sm">🗂️ Templates</button>
-        <button id="marketplaceBtn" class="btn btn-sm">🛒 Market</button>
-        <button id="viewLogsBtn" class="btn btn-sm">Logs</button>
-        <button id="settingsBtn" class="btn btn-sm">Settings</button>
-        <button id="exportBtn" class="btn btn-sm">Export</button>
-        <button id="importBtn" class="btn btn-sm">Import</button>
-        <input id="importFile" type="file" accept="application/json" class="hidden" />
+        <button id="templatesBtn" class="btn sidebar-nav-btn">
+          <span class="snb-icon">🗂️</span><span class="snb-label">Templates</span>
+        </button>
+        <button id="marketplaceBtn" class="btn sidebar-nav-btn">
+          <span class="snb-icon">🛒</span><span class="snb-label">Marketplace</span>
+        </button>
+        <button id="viewLogsBtn" class="btn sidebar-nav-btn">
+          <span class="snb-icon">📋</span><span class="snb-label">Logs</span>
+        </button>
+        <button id="settingsBtn" class="btn sidebar-nav-btn">
+          <span class="snb-icon">⚙️</span><span class="snb-label">Settings</span>
+        </button>
+        <div class="sidebar-util-row">
+          <button id="exportBtn" class="btn sidebar-util-btn">↑ Export</button>
+          <button id="importBtn" class="btn sidebar-util-btn">↓ Import</button>
+          <input id="importFile" type="file" accept="application/json" class="hidden" />
+        </div>
       </div>
     </aside>
 
