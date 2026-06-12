@@ -998,6 +998,11 @@ function renderStep(step, i, parentArray) {
       fields.appendChild(field("Filename", step.value || "", (v) => (step.value = v), "e.g. data.csv"));
     } else if (step.type === "mark_row_processed") {
       // No extra fields required
+    } else if (step.type === "comment") {
+      fields.appendChild(textareaField("Comment", step.value || step.text || "", (v) => {
+        step.value = v;
+        step.text = v;
+      }, "Enter comment text here..."));
     } else {
       const placeholder = step.type === "navigate" ? "https://..." : step.type === "check" ? "true / false" : step.type === "selectOption" ? "option value or text" : step.type === "waitNetworkIdle" ? "Idle duration (ms)" : step.type === "extractText" ? "Variable name to save to" : step.type === "exportData" ? "Format: 'csv' or 'json'" : "text to type";
       fields.appendChild(field("Value", step.value || "", (v) => (step.value = v), placeholder));
@@ -1321,8 +1326,8 @@ async function onSave(e) {
 
     const missing = [];
     if (needs.includes("selector") && !step.selector && step.type !== "pressKey") missing.push("selector");
-    if (needs.includes("value") && !step.value &&
-        !["screenshot", "exportData", "pressKey"].includes(step.type)) missing.push("value");
+    if (needs.includes("value") && !step.value && !step.text &&
+        !["screenshot", "exportData", "pressKey", "comment"].includes(step.type)) missing.push("value");
     if (step.type === "sendWebhook" && !step.value) missing.push("Webhook URL");
     if (step.type === "runWorkflow" && !step.value) missing.push("target workflow");
 

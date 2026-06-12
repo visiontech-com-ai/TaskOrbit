@@ -18,6 +18,7 @@ export const STEP_TYPES = {
   waitInvisible: { label: "Wait for element to be invisible", needs: ["selector", "delayMs"], group: "Wait & Flow" },
   wait: { label: "Wait (delay)", needs: ["delayMs"], group: "Wait & Flow" },
   waitNetworkIdle: { label: "Wait for Network Idle", needs: ["value", "delayMs"], group: "Wait & Flow" },
+  comment: { label: "Comment", needs: ["value"], group: "Wait & Flow" },
   runWorkflow: { label: "Run Workflow (Nested)", needs: ["value"], proFeature: "advanced", group: "Wait & Flow" },
   sendWebhook: { label: "Send Webhook", needs: ["value", "selector"], proFeature: "advanced", group: "Wait & Flow" },
 
@@ -47,7 +48,7 @@ export const STEP_GROUPS = [
   },
   {
     label: "Waiting",
-    types: ["wait", "waitFor", "waitVisible", "waitInvisible", "waitNetworkIdle"]
+    types: ["wait", "waitFor", "waitVisible", "waitInvisible", "waitNetworkIdle", "comment"]
   },
   {
     label: "Data Extraction",

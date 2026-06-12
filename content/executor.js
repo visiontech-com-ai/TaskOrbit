@@ -6,6 +6,8 @@
   window.__vf_emergency_stop = false;
   window.__debugMode = false;
   let __debugResolve = null; // Resolve function for the debug pause promise
+  let __debugReject = null; // Reject function for the debug pause promise
+  let activeSleepReject = null; // Reject function for the active sleep promise
 
   // ---- Network Interceptor Injection ----------------------------------------
   (function injectNetworkInterceptor() {
@@ -16,7 +18,24 @@
     (document.head || document.documentElement).appendChild(script);
   })();
 
-  const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+  const sleep = (ms) => new Promise((resolve, reject) => {
+    if (window.__vf_emergency_stop) {
+      reject(new Error("Emergency Stop"));
+      return;
+    }
+    let timeout;
+    const rejectFn = (err) => {
+      clearTimeout(timeout);
+      reject(err);
+    };
+    activeSleepReject = rejectFn;
+    timeout = setTimeout(() => {
+      if (activeSleepReject === rejectFn) {
+        activeSleepReject = null;
+      }
+      resolve();
+    }, ms);
+  });
 
   // ---- Live Progress Overlay -----------------------------------------------
 
@@ -212,8 +231,9 @@
   }
 
   function waitForDebugResume() {
-    return new Promise((resolve) => {
+    return new Promise((resolve, reject) => {
       __debugResolve = resolve;
+      __debugReject = reject;
     });
   }
   // Step type labels for debug mode messages
@@ -227,7 +247,8 @@
     sendWebhook: "Send Webhook", append_row: "Save to Table Row", export_table: "Export Table as CSV",
     load_csv: "Load CSV Data", mark_row_processed: "Mark Row Processed",
     if_exists: "If Element Exists", if_not_exists: "If Element Not Exists",
-    if_variable: "If Variable", else: "Else", end_if: "End If", loop: "Loop Container"
+    if_variable: "If Variable", else: "Else", end_if: "End If", loop: "Loop Container",
+    comment: "Comment"
   };
 
   function queryEl(step) {
@@ -982,6 +1003,9 @@
         return;
       }
 
+      case "comment": {
+        return;
+      }
       default:
         throw new Error("Unknown step type: " + type);
     }
@@ -1467,6 +1491,12 @@
         }
       }
     } catch (e) {
+      if (window.__vf_emergency_stop || e.message === "Emergency Stop" || e.message === "Emergency Stop triggered by user.") {
+        window.__vf_emergency_stop = true;
+        if (topLevel) removeProgressOverlay();
+        await clearExecutionState();
+        return { ok: false, error: "Emergency Stop triggered by user." };
+      }
       if (executionStack.length > 0) {
         const topIndex = executionStack[0].index;
         updateProgressStep(topIndex, "fail");
@@ -1650,6 +1680,11 @@
           chrome.runtime.sendMessage({ type: "debugFinished", ok: result.ok, error: result.error }).catch(() => {});
           sendResponse(result);
         });
+      }).catch((err) => {
+        removeHighlight();
+        window.__debugMode = false;
+        chrome.runtime.sendMessage({ type: "debugFinished", ok: false, error: err.message }).catch(() => {});
+        sendResponse({ ok: false, error: err.message });
       });
       return true; // async
     }
@@ -1661,6 +1696,7 @@
       if (__debugResolve) {
         __debugResolve();
         __debugResolve = null;
+        __debugReject = null;
       }
       sendResponse({ ok: true });
       return false;
@@ -1671,6 +1707,17 @@
       window.__wfRunning = false;
       removeHighlight();
       removeProgressOverlay();
+      
+      if (activeSleepReject) {
+        activeSleepReject(new Error("Emergency Stop"));
+        activeSleepReject = null;
+      }
+      if (__debugReject) {
+        __debugReject(new Error("Emergency Stop"));
+        __debugResolve = null;
+        __debugReject = null;
+      }
+      
       sendResponse({ ok: true });
       return false;
     }
