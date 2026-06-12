@@ -51,16 +51,17 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
       debugWorkflow(msg.workflowId, msg.tabId, msg.variables).then(sendResponse);
       return true;
     case "debugPause":
-      // Relay from content script to popup
-      chrome.runtime.sendMessage({ type: "debugPauseRelay", ...msg }).catch(() => {});
+      // Relay from content script to popup.
+      // Spread msg first, then set type — otherwise msg.type ("debugPause") clobbers it.
+      chrome.runtime.sendMessage({ ...msg, type: "debugPauseRelay" }).catch(() => {});
       return false;
     case "debugResume":
       // Relay from popup to content script
       chrome.tabs.sendMessage(msg.tabId, { type: "debugResume", runAll: msg.runAll || false }).catch(() => {});
       return false;
     case "debugFinished":
-      // Relay from content script to popup
-      chrome.runtime.sendMessage({ type: "debugFinishedRelay", ...msg }).catch(() => {});
+      // Relay from content script to popup (spread first, then set type).
+      chrome.runtime.sendMessage({ ...msg, type: "debugFinishedRelay" }).catch(() => {});
       return false;
     default:
       return false;

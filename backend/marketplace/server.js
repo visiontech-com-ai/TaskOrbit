@@ -136,6 +136,7 @@ app.get('/api/workflows/:id', readLimiter, async (req, res) => {
         ...row,
         tags: JSON.parse(row.tags || '[]'),
         sites: JSON.parse(row.sites || '[]'),
+        variables: JSON.parse(row.variables || '[]'),
         steps: JSON.parse(row.steps_json)
       }
     });
@@ -173,8 +174,8 @@ app.post('/api/workflows', writeLimiter, async (req, res) => {
     const stepsJson = JSON.stringify(sanitized);
 
     await db.run(
-      `INSERT INTO workflows (id, name, description, author, category, tags, sites, step_count, steps_json, downloads, status, created_at, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?)`,
+      `INSERT INTO workflows (id, name, description, author, category, tags, sites, variables, step_count, steps_json, downloads, status, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?)`,
       [
         id,
         name.trim().slice(0, 100),
@@ -183,6 +184,7 @@ app.post('/api/workflows', writeLimiter, async (req, res) => {
         resolvedCategory,
         JSON.stringify(Array.isArray(tags) ? tags.slice(0, 10).map(t => String(t).slice(0, 30)) : []),
         JSON.stringify(Array.isArray(sites) ? sites.slice(0, 10) : []),
+        JSON.stringify(Array.isArray(variables) ? variables : []),
         sanitized.length,
         stepsJson,
         status,

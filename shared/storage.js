@@ -293,12 +293,16 @@ export function parseShortcut(str) {
 
 export const SETTINGS_KEY = "settings";
 
+// Single source of truth for the Community Marketplace backend.
+// Must match a host_permissions entry in manifest.json.
+export const MARKETPLACE_URL = "http://172.16.16.31:4000";
+
 export async function getSettings() {
   const data = await chrome.storage.local.get(SETTINGS_KEY);
   return data[SETTINGS_KEY] || {
     revealPasswords: "off", // "off", "all", "site"
     revealSites: [],
-    marketplaceUrl: "http://localhost:4000"
+    marketplaceUrl: MARKETPLACE_URL
   };
 }
 

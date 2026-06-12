@@ -4,6 +4,7 @@
   "version": "1.0.0",
   "description": "Build and run configurable automation workflows (click, select, type text) on the sites you choose.",
   "permissions": ["storage", "scripting", "tabs", "activeTab", "downloads", "alarms", "contextMenus"],
+  "host_permissions": ["http://172.16.16.31:4000/*"],
   "optional_host_permissions": ["*://*/*"],
   "background": {
     "service_worker": "background.js",

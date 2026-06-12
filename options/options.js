@@ -15,7 +15,8 @@ import {
   clearLogs,
   getSettings,
   saveSettings,
-  COMPARISON_OPERATORS
+  COMPARISON_OPERATORS,
+  MARKETPLACE_URL
 } from "../shared/storage.js";
 import { getCapabilities } from "../shared/capabilities.js";
 import { getActiveLicense, activateLicense, removeLicense } from "../shared/license.js";
@@ -57,6 +58,7 @@ const els = {
   jsonBuilderError: document.getElementById("jsonBuilderError"),
   
   exportOneBtn: document.getElementById("exportOneBtn"),
+  shareWfBtn: document.getElementById("shareWfBtn"),
   clearMemoryBtn: document.getElementById("clearMemoryBtn"),
   deleteBtn: document.getElementById("deleteBtn"),
   saveStatus: document.getElementById("saveStatus"),
@@ -230,6 +232,7 @@ function bindEvents() {
   els.grantBtn.addEventListener("click", onGrant);
   els.addStepBtn.addEventListener("click", onAddStep);
   els.exportOneBtn.addEventListener("click", onExportOne);
+  if (els.shareWfBtn) els.shareWfBtn.addEventListener("click", openPublishModal);
   els.deleteBtn.addEventListener("click", onDelete);
   els.form.addEventListener("submit", onSave);
   els.wfName.addEventListener("input", () => {
@@ -344,13 +347,13 @@ async function onActivateLicense(source = "settings") {
   
   if (!email) {
     msg.textContent = "Please enter your email address.";
-    msg.style.color = "var(--error)";
+    msg.style.color = "var(--danger)";
     return;
   }
   
   if (!key) {
     msg.textContent = "Please enter a key.";
-    msg.style.color = "var(--error)";
+    msg.style.color = "var(--danger)";
     return;
   }
   
@@ -360,7 +363,7 @@ async function onActivateLicense(source = "settings") {
   const result = await activateLicense(key, email);
   if (result.success) {
     msg.textContent = "License activated successfully!";
-    msg.style.color = "var(--success)";
+    msg.style.color = "var(--ok)";
     setTimeout(async () => {
       if (isModal) hideUpgradeModal();
       
@@ -392,7 +395,7 @@ async function onActivateLicense(source = "settings") {
     }, 600);
   } else {
     msg.textContent = result.error || "Invalid license.";
-    msg.style.color = "var(--error)";
+    msg.style.color = "var(--danger)";
   }
 }
 
@@ -1768,7 +1771,7 @@ function renderTemplates(categoryFilter) {
     useBtn.addEventListener("click", async () => {
       if (workflows.length >= capabilities.maxWorkflows) { showUpgradeModal(); return; }
       const wf = structuredClone(tpl.workflow);
-      wf.id = "wf_" + Date.now() + "_" + Math.random().toString(36).substr(2, 9);
+      wf.id = "wf_" + Date.now() + "_" + Math.random().toString(36).slice(2, 11);
       await upsertWorkflow(wf);
       workflows = await getWorkflows();
       selectWorkflow(wf.id);
@@ -1803,7 +1806,7 @@ async function onViewMarketplace() {
 }
 
 async function initMarketplaceCategories() {
-  const baseUrl = (extensionSettings && extensionSettings.marketplaceUrl) || "http://localhost:4000";
+  const baseUrl = MARKETPLACE_URL;
   try {
     const res = await fetch(`${baseUrl}/api/categories`);
     if (!res.ok) return;
@@ -1823,7 +1826,7 @@ async function initMarketplaceCategories() {
 }
 
 async function loadMarketplace() {
-  const baseUrl = (extensionSettings && extensionSettings.marketplaceUrl) || "http://localhost:4000";
+  const baseUrl = MARKETPLACE_URL;
   const query = els.marketplaceSearch.value.trim();
   const category = els.marketplaceCategory.value;
   const sort = els.marketplaceSort.value;
@@ -1914,7 +1917,7 @@ function renderMarketplaceCards(items) {
 }
 
 async function installMarketplaceWorkflow(id) {
-  const baseUrl = (extensionSettings && extensionSettings.marketplaceUrl) || "http://localhost:4000";
+  const baseUrl = MARKETPLACE_URL;
   try {
     const res = await fetch(`${baseUrl}/api/workflows/${id}`);
     if (!res.ok) throw new Error(`Server returned ${res.status}`);
@@ -1982,7 +1985,7 @@ function closePublishModal() {
 }
 
 async function onPublishWorkflow() {
-  const baseUrl = (extensionSettings && extensionSettings.marketplaceUrl) || "http://localhost:4000";
+  const baseUrl = MARKETPLACE_URL;
   const wfId = els.publishWorkflowSelect.value;
   const author = els.publishAuthor.value.trim();
   const category = els.publishCategory.value;
@@ -1992,12 +1995,12 @@ async function onPublishWorkflow() {
 
   if (!author) {
     els.publishMessage.textContent = "Author name is required.";
-    els.publishMessage.style.color = "var(--error, red)";
+    els.publishMessage.style.color = "var(--danger)";
     return;
   }
   if (!description) {
     els.publishMessage.textContent = "Description is required.";
-    els.publishMessage.style.color = "var(--error, red)";
+    els.publishMessage.style.color = "var(--danger)";
     return;
   }
 
@@ -2029,11 +2032,11 @@ async function onPublishWorkflow() {
     els.publishMessage.textContent = data.status === "pending"
       ? "Submitted! Your workflow is pending review."
       : "Published successfully!";
-    els.publishMessage.style.color = "var(--success, green)";
+    els.publishMessage.style.color = "var(--ok)";
     setTimeout(closePublishModal, 2000);
   } catch (err) {
     els.publishMessage.textContent = `Failed: ${err.message}`;
-    els.publishMessage.style.color = "var(--error, red)";
+    els.publishMessage.style.color = "var(--danger)";
   } finally {
     els.confirmPublishBtn.disabled = false;
   }

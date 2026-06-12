@@ -343,31 +343,6 @@
       </div>
     </div>
 
-    <!-- Share to Marketplace Modal -->
-    <div id="shareModal" class="hidden" style="position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 2000; display: none; align-items: center; justify-content: center; backdrop-filter: blur(2px);">
-      <div style="background: white; border-radius: 12px; padding: 25px; max-width: 420px; width: 100%; box-shadow: 0 10px 40px rgba(0,0,0,0.2); display: flex; flex-direction: column; gap: 15px;">
-        <h2 style="margin: 0; color: var(--fg); font-size: 1.3rem;">🌐 Share to Community Hub</h2>
-        <p style="margin: 0; color: var(--muted); font-size: 12px; line-height: 1.4;">Publish your workflow to the TaskOrbit Marketplace. Sensitive settings, variables, local processed row logs, and memory banks are stripped automatically before sharing.</p>
-        
-        <div>
-          <label for="shareAuthorInput" style="font-size: 12px; margin-bottom: 4px;">Author Name</label>
-          <input id="shareAuthorInput" type="text" placeholder="Anonymous" style="width: 100%; padding: 8px; border: 1px solid var(--border); border-radius: 6px;" />
-        </div>
-
-        <div>
-          <label for="shareDescInput" style="font-size: 12px; margin-bottom: 4px;">Workflow Description</label>
-          <textarea id="shareDescInput" placeholder="Explain what this automation does..." style="width: 100%; height: 80px; padding: 8px; border: 1px solid var(--border); border-radius: 6px; font-family: inherit; font-size: 13px; resize: vertical;"></textarea>
-        </div>
-
-        <div id="shareModalError" style="color: red; font-size: 12px; margin-top: -5px; min-height: 15px;"></div>
-
-        <div style="display: flex; gap: 10px; justify-content: flex-end; margin-top: 5px;">
-          <button type="button" id="closeShareModalBtn" class="btn btn-sm">Cancel</button>
-          <button type="button" id="confirmShareBtn" class="btn btn-primary btn-sm">Publish Workflow</button>
-        </div>
-      </div>
-    </div>
-
     <script type="module" src="options.js"></script>
   </body>
 </html>

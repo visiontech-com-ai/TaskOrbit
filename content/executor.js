@@ -55,8 +55,32 @@
     ].join(";");
 
     const header = document.createElement("div");
-    header.style.cssText = "font-weight:600;margin-bottom:10px;font-size:12px;letter-spacing:.05em;text-transform:uppercase;color:#aab;";
-    header.textContent = "TaskOrbit Running";
+    header.style.cssText = "display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:10px;";
+
+    const headerTitle = document.createElement("span");
+    headerTitle.style.cssText = "font-weight:600;font-size:12px;letter-spacing:.05em;text-transform:uppercase;color:#aab;";
+    headerTitle.textContent = "TaskOrbit Running";
+    header.appendChild(headerTitle);
+
+    const stopBtn = document.createElement("button");
+    stopBtn.type = "button";
+    stopBtn.textContent = "■ Stop";
+    stopBtn.style.cssText = [
+      "all:unset","cursor:pointer","flex-shrink:0",
+      "font:600 11px/1 system-ui,sans-serif","color:#fff",
+      "background:linear-gradient(135deg,#f87171,#ef4444)",
+      "padding:5px 10px","border-radius:6px",
+      "box-shadow:0 1px 4px rgba(239,68,68,.5)"
+    ].join(";");
+    stopBtn.addEventListener("mouseenter", () => { stopBtn.style.filter = "brightness(1.1)"; });
+    stopBtn.addEventListener("mouseleave", () => { stopBtn.style.filter = "none"; });
+    stopBtn.addEventListener("click", (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      triggerEmergencyStop();
+    });
+    header.appendChild(stopBtn);
+
     overlay.appendChild(header);
 
     const TYPE_LABELS = {
@@ -1702,25 +1726,29 @@
       return false;
     }
     if (msg && msg.type === "emergencyStop") {
-      window.__vf_emergency_stop = true;
-      window.__debugMode = false;
-      window.__wfRunning = false;
-      removeHighlight();
-      removeProgressOverlay();
-      
-      if (activeSleepReject) {
-        activeSleepReject(new Error("Emergency Stop"));
-        activeSleepReject = null;
-      }
-      if (__debugReject) {
-        __debugReject(new Error("Emergency Stop"));
-        __debugResolve = null;
-        __debugReject = null;
-      }
-      
+      triggerEmergencyStop();
       sendResponse({ ok: true });
       return false;
     }
     return false;
   });
+
+  // Centralised stop logic — used by the popup message and the in-page Stop button.
+  function triggerEmergencyStop() {
+    window.__vf_emergency_stop = true;
+    window.__debugMode = false;
+    window.__wfRunning = false;
+    removeHighlight();
+    removeProgressOverlay();
+
+    if (activeSleepReject) {
+      activeSleepReject(new Error("Emergency Stop"));
+      activeSleepReject = null;
+    }
+    if (__debugReject) {
+      __debugReject(new Error("Emergency Stop"));
+      __debugResolve = null;
+      __debugReject = null;
+    }
+  }
 })();

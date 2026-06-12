@@ -39,6 +39,7 @@ async function initDb() {
       category    TEXT DEFAULT 'General',
       tags        TEXT DEFAULT '[]',
       sites       TEXT DEFAULT '[]',
+      variables   TEXT DEFAULT '[]',
       step_count  INTEGER DEFAULT 0,
       steps_json  TEXT NOT NULL,
       downloads   INTEGER DEFAULT 0,
@@ -47,6 +48,10 @@ async function initDb() {
       updated_at  INTEGER
     )
   `);
+
+  // Idempotent migration for databases created before the variables column existed.
+  await run(`ALTER TABLE workflows ADD COLUMN variables TEXT DEFAULT '[]'`).catch(() => {});
+
   console.log('Marketplace schema initialized.');
 }
 
